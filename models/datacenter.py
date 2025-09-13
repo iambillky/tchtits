@@ -1,0 +1,205 @@
+"""
+File: models/datacenter.py
+Purpose: Data center infrastructure models for DCMS
+Created: 2024-09-13
+Author: iambilky
+
+Revision History:
+- 2024-09-13: Initial creation with DataCenter, Floor, Rack, PDU models
+- 2024-09-13: Added relationships and cascade delete support
+- 2024-09-13: Added utilization calculation properties
+"""
+
+from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+
+# ========== DATABASE INITIALIZATION ==========
+
+db = SQLAlchemy()
+
+# ========== MODEL DEFINITIONS ==========
+
+class DataCenter(db.Model):
+    """
+    Data Center model
+    Represents a physical data center location with its code and details
+    """
+    __tablename__ = 'datacenters'
+    
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Basic information
+    code = db.Column(db.String(3), unique=True, nullable=False)  # SFJ, LAX, etc.
+    name = db.Column(db.String(100), nullable=False)  # San Francisco Junction
+    address = db.Column(db.String(200))
+    contact_phone = db.Column(db.String(20))
+    contact_email = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    floors = db.relationship('Floor', backref='datacenter', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<DataCenter {self.code}>'
+    
+    @property
+    def rack_count(self):
+        """Get total rack count for this DC"""
+        return sum(floor.racks.count() for floor in self.floors)
+    
+    @property
+    def total_u_capacity(self):
+        """Calculate total U capacity across all racks"""
+        total = 0
+        for floor in self.floors:
+            for rack in floor.racks:
+                total += rack.u_height
+        return total
+
+
+class Floor(db.Model):
+    """
+    Floor model for organizing racks within a data center
+    Maps provider's weird designations to actual floor numbers
+    """
+    __tablename__ = 'floors'
+    
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Foreign key to data center
+    datacenter_id = db.Column(db.Integer, db.ForeignKey('datacenters.id'), nullable=False)
+    
+    # Floor information
+    provider_designation = db.Column(db.String(10), nullable=False)  # G, A, B, etc.
+    actual_floor = db.Column(db.String(20), nullable=False)  # 1st, 2nd, 3rd, 4th, Basement
+    description = db.Column(db.String(100))
+    
+    # Timestamp
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    racks = db.relationship('Rack', backref='floor', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Floor {self.provider_designation} ({self.actual_floor})>'
+
+
+class Rack(db.Model):
+    """
+    Rack model
+    Represents a physical rack with location, size, and power information
+    """
+    __tablename__ = 'racks'
+    
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Foreign key to floor
+    floor_id = db.Column(db.Integer, db.ForeignKey('floors.id'), nullable=False)
+    
+    # Rack identification
+    rack_id = db.Column(db.String(20), unique=True, nullable=False)  # Full ID like SFJ-G09.01
+    row_number = db.Column(db.String(10), nullable=False)  # G09
+    cabinet_number = db.Column(db.String(10), nullable=False)  # 01
+    
+    # Physical specifications
+    u_height = db.Column(db.Integer, nullable=False, default=42)  # Total U height
+    u_used = db.Column(db.Integer, default=0)  # Currently used U spaces
+    
+    # Power specifications
+    power_capacity = db.Column(db.Float)  # Total power capacity in amps
+    power_used = db.Column(db.Float, default=0)  # Currently used power
+    
+    # Additional information
+    notes = db.Column(db.Text)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    pdus = db.relationship('PDU', backref='rack', lazy='dynamic', cascade='all, delete-orphan')
+    
+    @property
+    def u_available(self):
+        """Calculate available U spaces"""
+        return self.u_height - self.u_used
+    
+    @property
+    def power_available(self):
+        """Calculate available power"""
+        if self.power_capacity:
+            return self.power_capacity - self.power_used
+        return None
+    
+    @property
+    def utilization_percent(self):
+        """Calculate space utilization percentage"""
+        if self.u_height > 0:
+            return round((self.u_used / self.u_height) * 100, 1)
+        return 0
+    
+    @property
+    def power_utilization_percent(self):
+        """Calculate power utilization percentage"""
+        if self.power_capacity and self.power_capacity > 0:
+            return round((self.power_used / self.power_capacity) * 100, 1)
+        return 0
+    
+    def __repr__(self):
+        return f'<Rack {self.rack_id}>'
+
+
+class PDU(db.Model):
+    """
+    Power Distribution Unit model
+    Represents a PDU within a rack for power distribution
+    """
+    __tablename__ = 'pdus'
+    
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Foreign key to rack
+    rack_id = db.Column(db.Integer, db.ForeignKey('racks.id'), nullable=False)
+    
+    # PDU identification
+    identifier = db.Column(db.String(50), nullable=False)  # PDU-1, PDU-A, etc.
+    circuit_id = db.Column(db.String(50))
+    
+    # Electrical specifications
+    capacity_amps = db.Column(db.Float, nullable=False)
+    voltage = db.Column(db.Integer, default=120)  # 120V, 208V, 240V
+    phase = db.Column(db.String(20))  # Single, Three-Phase
+    
+    # Outlet information
+    total_outlets = db.Column(db.Integer, nullable=False)
+    used_outlets = db.Column(db.Integer, default=0)
+    
+    # Management
+    ip_address = db.Column(db.String(45))  # For managed PDUs
+    
+    # Additional information
+    notes = db.Column(db.Text)
+    
+    # Timestamp
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    @property
+    def available_outlets(self):
+        """Calculate available outlets"""
+        return self.total_outlets - self.used_outlets
+    
+    @property
+    def watts_capacity(self):
+        """Calculate capacity in watts"""
+        return self.capacity_amps * self.voltage
+    
+    def __repr__(self):
+        return f'<PDU {self.identifier} in Rack {self.rack.rack_id}>'

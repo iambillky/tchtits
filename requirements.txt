@@ -1,0 +1,23 @@
+# Core Flask framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Database
+Flask-SQLAlchemy==3.0.5
+SQLAlchemy==2.0.21
+
+# Forms
+Flask-WTF==1.1.1
+WTForms==3.0.1
+
+# Environment management
+python-dotenv==1.0.0
+
+# Development tools (optional)
+# Flask-DebugToolbar==0.13.1
+
+# Authentication (for later)
+# Flask-Login==0.6.2
+
+# API (for later)
+# Flask-RESTful==0.3.10

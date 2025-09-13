@@ -1,0 +1,93 @@
+<!--
+File: templates/about.html
+Purpose: About page with system information
+Created: 2024-09-13
+Author: DCMS Team
+
+Revision History:
+- 2024-09-13: Initial creation with system info and features
+-->
+
+{% extends "base.html" %}
+
+{% block title %}About{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">About DCMS</h1>
+    <p class="page-subtitle">Modern Data Center Management System</p>
+</div>
+
+<!-- ========== SYSTEM INFORMATION ========== -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">System Information</h5>
+        <table class="table table-dark-custom">
+            <tbody>
+                <tr>
+                    <td style="width: 200px;"><strong>Version</strong></td>
+                    <td>{{ version }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Framework</strong></td>
+                    <td>Flask with Python</td>
+                </tr>
+                <tr>
+                    <td><strong>Purpose</strong></td>
+                    <td>Complete data center infrastructure management</td>
+                </tr>
+                <tr>
+                    <td><strong>Database</strong></td>
+                    <td>SQLite (Development) / PostgreSQL (Production)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========== KEY FEATURES ========== -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Key Features</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <ul style="list-style: none; padding: 0;">
+                    <li style="padding: 8px 0;">✅ Complete IP Address Management (IPAM)</li>
+                    <li style="padding: 8px 0;">✅ Network topology tracking</li>
+                    <li style="padding: 8px 0;">✅ Separate equipment management</li>
+                    <li style="padding: 8px 0;">✅ Subnet and VLAN management</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <ul style="list-style: none; padding: 0;">
+                    <li style="padding: 8px 0;">✅ Rack space visualization</li>
+                    <li style="padding: 8px 0;">✅ Power distribution tracking</li>
+                    <li style="padding: 8px 0;">✅ Comprehensive reporting</li>
+                    <li style="padding: 8px 0;">✅ Real-time monitoring</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== SYSTEM REQUIREMENTS ========== -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">System Requirements</h5>
+        <ul style="list-style: none; padding: 0;">
+            <li style="padding: 8px 0;">💻 Windows Server 2019+ or Windows 10/11</li>
+            <li style="padding: 8px 0;">🐍 Python 3.12 (NOT 3.13 due to compatibility)</li>
+            <li style="padding: 8px 0;">🌐 Modern web browser (Chrome, Firefox, Edge)</li>
+            <li style="padding: 8px 0;">💾 Minimum 4GB RAM, 10GB storage</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ========== SUPPORT ========== -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Support</h5>
+        <p style="color: #8b92a5;">For support and documentation, please refer to the internal IT documentation or contact the system administrator.</p>
+    </div>
+</div>
+{% endblock %}

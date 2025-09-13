@@ -1,0 +1,358 @@
+<!--
+File: templates/datacenters/index.html
+Purpose: Main data center view showing all racks in all DCs
+Created: 2024-09-13
+Author: iambilky
+
+Revision History:
+- 2024-09-13: Initial creation with data table and search
+- 2024-09-13: Added utilization bars and export functionality
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Data Centers{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== SUMMARY BAR ========== */
+    .summary-bar {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+    
+    .summary-item {
+        text-align: center;
+    }
+    
+    .summary-label {
+        color: #8b92a5;
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    
+    .summary-value {
+        color: #60a5fa;
+        font-size: 1.8rem;
+        font-weight: 600;
+    }
+    
+    /* ========== ACTION BAR ========== */
+    .action-bar {
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .search-box {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 10px 15px;
+        color: #fff;
+        width: 300px;
+    }
+    
+    .search-box::placeholder {
+        color: #8b92a5;
+    }
+    
+    /* ========== DATA TABLE ========== */
+    .data-table {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    .data-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+        font-weight: 600;
+        padding: 15px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        position: sticky;
+        top: 0;
+        cursor: pointer;
+    }
+    
+    .data-table th:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+    
+    .data-table td {
+        color: #e4e6eb;
+        padding: 12px 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    
+    .data-table tr:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+    
+    /* ========== UTILIZATION BARS ========== */
+    .utilization-bar {
+        width: 100px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .utilization-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    
+    .utilization-low { background: #10b981; }
+    .utilization-medium { background: #f59e0b; }
+    .utilization-high { background: #ef4444; }
+    
+    .utilization-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    
+    /* ========== BADGES ========== */
+    .dc-badge {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-block;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 10px;
+    }
+    
+    /* ========== DROPDOWN ========== */
+    .dropdown-menu {
+        background: #1a1f2e;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .dropdown-item {
+        color: #e4e6eb;
+    }
+    
+    .dropdown-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+    }
+    
+    /* ========== NO DATA STATE ========== */
+    .no-data {
+        text-align: center;
+        padding: 60px 20px;
+        color: #8b92a5;
+    }
+    
+    .no-data-icon {
+        font-size: 3rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Data Center Infrastructure</h1>
+    <p class="page-subtitle">Complete overview of all data centers, floors, and racks</p>
+</div>
+
+<!-- ========== SUMMARY BAR ========== -->
+<div class="summary-bar">
+    <div class="summary-item">
+        <div class="summary-label">Total DCs</div>
+        <div class="summary-value">{{ total_dcs }}</div>
+    </div>
+    <div class="summary-item">
+        <div class="summary-label">Total Racks</div>
+        <div class="summary-value">{{ total_racks }}</div>
+    </div>
+    <div class="summary-item">
+        <div class="summary-label">Total Capacity</div>
+        <div class="summary-value">{{ total_capacity }}U</div>
+    </div>
+    <div class="summary-item">
+        <div class="summary-label">Overall Utilization</div>
+        <div class="summary-value">{{ overall_utilization }}%</div>
+    </div>
+</div>
+
+<!-- ========== ACTION BAR ========== -->
+<div class="action-bar">
+    <input type="text" class="search-box" id="searchInput" placeholder="Search racks, DCs, floors...">
+    
+    <div class="btn-group">
+        <div class="dropdown">
+            <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <span style="margin-right: 5px;">➕</span> Add New
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ url_for('datacenters.add_datacenter') }}">Add Data Center</a></li>
+                <li><a class="dropdown-item" href="#" onclick="alert('Select a DC first!')">Add Floor</a></li>
+                <li><a class="dropdown-item" href="#" onclick="alert('Select a floor first!')">Add Rack</a></li>
+            </ul>
+        </div>
+        
+        <button class="btn btn-secondary" onclick="exportTable()">
+            <span style="margin-right: 5px;">📊</span> Export CSV
+        </button>
+    </div>
+</div>
+
+<!-- ========== MAIN DATA TABLE ========== -->
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        {% if rack_data %}
+        <table class="data-table" id="rackTable" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">DC Code ↕</th>
+                    <th onclick="sortTable(1)">DC Name ↕</th>
+                    <th onclick="sortTable(2)">Rack ID ↕</th>
+                    <th onclick="sortTable(3)">Actual Floor ↕</th>
+                    <th onclick="sortTable(4)">Provider Designation ↕</th>
+                    <th onclick="sortTable(5)">Size ↕</th>
+                    <th onclick="sortTable(6)">Used/Total ↕</th>
+                    <th onclick="sortTable(7)">Space Utilization ↕</th>
+                    <th onclick="sortTable(8)">Power (A) ↕</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rack in rack_data %}
+                <tr>
+                    <td><span class="dc-badge">{{ rack.dc_code }}</span></td>
+                    <td>{{ rack.dc_name }}</td>
+                    <td><strong>{{ rack.rack_id }}</strong></td>
+                    <td>{{ rack.floor_actual }}</td>
+                    <td>{{ rack.floor_provider }}</td>
+                    <td>{{ rack.u_height }}U</td>
+                    <td>{{ rack.u_used }}/{{ rack.u_height }}</td>
+                    <td>
+                        <div class="utilization-bar">
+                            <div class="utilization-fill {% if rack.utilization < 60 %}utilization-low{% elif rack.utilization < 80 %}utilization-medium{% else %}utilization-high{% endif %}" 
+                                 style="width: {{ rack.utilization }}%;">
+                            </div>
+                            <span class="utilization-text">{{ rack.utilization }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if rack.power_capacity %}
+                            {{ rack.power_used }}/{{ rack.power_capacity }}A
+                        {% else %}
+                            <span style="color: #8b92a5;">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="{{ url_for('datacenters.edit_rack', rack_id=rack.rack_obj_id) }}" 
+                               class="btn btn-sm btn-secondary">Edit</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <!-- ========== NO DATA STATE ========== -->
+        <div class="no-data">
+            <div class="no-data-icon">🏢</div>
+            <h3>No Data Centers Configured</h3>
+            <p>Start by adding your first data center</p>
+            <a href="{{ url_for('datacenters.add_datacenter') }}" class="btn btn-primary mt-3">
+                <span style="margin-right: 5px;">➕</span> Add Data Center
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ========== SEARCH FUNCTIONALITY ==========
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const table = document.getElementById('rackTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    }
+});
+
+// ========== SORT TABLE ==========
+function sortTable(columnIndex) {
+    const table = document.getElementById('rackTable');
+    const tbody = table.getElementsByTagName('tbody')[0];
+    const rows = Array.from(tbody.getElementsByTagName('tr'));
+    
+    rows.sort((a, b) => {
+        const aValue = a.getElementsByTagName('td')[columnIndex].textContent;
+        const bValue = b.getElementsByTagName('td')[columnIndex].textContent;
+        
+        // Try to parse as number first
+        const aNum = parseFloat(aValue);
+        const bNum = parseFloat(bValue);
+        
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum;
+        }
+        
+        return aValue.localeCompare(bValue);
+    });
+    
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+// ========== EXPORT TO CSV ==========
+function exportTable() {
+    const table = document.getElementById('rackTable');
+    let csv = [];
+    
+    // Headers
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.replace(' ↕', ''));
+    csv.push(headers.slice(0, -1).join(','));  // Exclude Actions column
+    
+    // Data
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const cols = Array.from(row.querySelectorAll('td')).slice(0, -1);  // Exclude Actions column
+        const data = cols.map(col => col.textContent.trim());
+        csv.push(data.join(','));
+    });
+    
+    // Download
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'datacenter_inventory.csv';
+    a.click();
+}
+</script>
+{% endblock %}
