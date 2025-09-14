@@ -1,0 +1,409 @@
+<!--
+File: templates/pdus/add_pdu.html
+Purpose: Form template for adding new PDUs to racks
+Version: 1.0.0
+Author: iambilky
+Created: 2024-01-09
+
+Revision History:
+- v1.0.0 (2024-01-09): Initial creation with model tracking
+                       Auto-suggest next PDU number
+                       Management IP configuration
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Add PDU{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== CONTEXT BAR ========== */
+    .context-bar {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    
+    .context-icon {
+        font-size: 2rem;
+    }
+    
+    .context-info {
+        flex: 1;
+    }
+    
+    .context-label {
+        color: #8b92a5;
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    
+    .context-value {
+        color: #60a5fa;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+    
+    /* ========== FORM CONTAINER ========== */
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .form-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 30px;
+    }
+    
+    /* ========== FORM SECTIONS ========== */
+    .form-section {
+        margin-bottom: 30px;
+    }
+    
+    .form-section-title {
+        color: #60a5fa;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* ========== FORM GROUPS ========== */
+    .form-group {
+        margin-bottom: 25px;
+    }
+    
+    .form-label {
+        display: block;
+        color: #e4e6eb;
+        font-weight: 500;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .form-label .required {
+        color: #ef4444;
+        margin-left: 3px;
+    }
+    
+    /* ========== FORM CONTROLS ========== */
+    .form-control {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #fff;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.1);
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+    }
+    
+    .form-control::placeholder {
+        color: #6b7280;
+    }
+    
+    select.form-control {
+        cursor: pointer;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
+    }
+    
+    /* ========== VALIDATION FEEDBACK ========== */
+    .invalid-feedback {
+        display: block;
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 5px;
+    }
+    
+    .form-control.is-invalid {
+        border-color: #ef4444;
+    }
+    
+    /* ========== HELP TEXT ========== */
+    .form-text {
+        display: block;
+        color: #8b92a5;
+        font-size: 0.875rem;
+        margin-top: 5px;
+    }
+    
+    /* ========== INFO BOX ========== */
+    .info-box {
+        background: rgba(96, 165, 250, 0.1);
+        border: 1px solid rgba(96, 165, 250, 0.2);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 25px;
+    }
+    
+    .info-box-title {
+        color: #60a5fa;
+        font-weight: 600;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .info-box-content {
+        color: #e4e6eb;
+        font-size: 0.95rem;
+    }
+    
+    /* ========== BUTTON GROUP ========== */
+    .button-group {
+        display: flex;
+        gap: 15px;
+        margin-top: 35px;
+        padding-top: 25px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #10b981, #059669);
+        border: none;
+        color: white;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .btn-success:hover {
+        background: linear-gradient(135deg, #059669, #047857);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    
+    .btn-cancel {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #e4e6eb;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    
+    .btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        text-decoration: none;
+    }
+    
+    /* ========== RESPONSIVE GRID ========== */
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Add PDU</h1>
+    <p class="page-subtitle">Configure a new power distribution unit</p>
+</div>
+
+<!-- ========== CONTEXT BAR ========== -->
+<div class="context-bar">
+    <div class="context-icon">⚡</div>
+    <div class="context-info">
+        <div class="context-label">Adding PDU to rack:</div>
+        <div class="context-value">{{ rack.rack_id }}</div>
+    </div>
+</div>
+
+<div class="form-container">
+    <div class="form-card">
+        <!-- ========== INFO BOX ========== -->
+        <div class="info-box">
+            <div class="info-box-title">
+                <span>ℹ️</span>
+                <span>PDU Configuration</span>
+            </div>
+            <div class="info-box-content">
+                PDUs are numbered sequentially across the data center (APC 1, APC 2, etc.).<br>
+                Each PDU has 24 outlets split into two banks with separate breakers:<br>
+                • Bank 1: Outlets 1-12<br>
+                • Bank 2: Outlets 13-24
+            </div>
+        </div>
+        
+        <form method="POST" action="{{ url_for('pdus.add_pdu', rack_id=rack.id) }}" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <!-- ========== IDENTIFICATION ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">PDU Identification</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.identifier.id }}" class="form-label">
+                            PDU Identifier <span class="required">*</span>
+                        </label>
+                        {{ form.identifier(class="form-control" + (" is-invalid" if form.identifier.errors else "")) }}
+                        <small class="form-text">Sequential numbering (APC 1, APC 2, etc.)</small>
+                        {% if form.identifier.errors %}
+                            {% for error in form.identifier.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.model.id }}" class="form-label">
+                            APC Model Number
+                        </label>
+                        {{ form.model(class="form-control") }}
+                        <small class="form-text">AP7932, AP8941, etc.</small>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.circuit_id.id }}" class="form-label">
+                        Circuit ID
+                    </label>
+                    {{ form.circuit_id(class="form-control") }}
+                    <small class="form-text">Electrical panel circuit identifier</small>
+                </div>
+            </div>
+            
+            <!-- ========== ELECTRICAL SPECIFICATIONS ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Electrical Specifications</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.capacity_amps.id }}" class="form-label">
+                            Capacity (Amps) <span class="required">*</span>
+                        </label>
+                        {{ form.capacity_amps(class="form-control" + (" is-invalid" if form.capacity_amps.errors else "")) }}
+                        <small class="form-text">15A or 30A typically</small>
+                        {% if form.capacity_amps.errors %}
+                            {% for error in form.capacity_amps.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.voltage.id }}" class="form-label">
+                            Voltage <span class="required">*</span>
+                        </label>
+                        {{ form.voltage(class="form-control") }}
+                        <small class="form-text">120V or 208V</small>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.phase.id }}" class="form-label">
+                            Phase <span class="required">*</span>
+                        </label>
+                        {{ form.phase(class="form-control") }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.total_outlets.id }}" class="form-label">
+                            Total Outlets <span class="required">*</span>
+                        </label>
+                        {{ form.total_outlets(class="form-control" + (" is-invalid" if form.total_outlets.errors else "")) }}
+                        <small class="form-text">Standard is 24 (2 banks of 12)</small>
+                        {% if form.total_outlets.errors %}
+                            {% for error in form.total_outlets.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ========== MANAGEMENT ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Management Interface</h3>
+                
+                <div class="form-group">
+                    <label for="{{ form.ip_address.id }}" class="form-label">
+                        Management IP Address
+                    </label>
+                    {{ form.ip_address(class="form-control") }}
+                    <small class="form-text">Private network IP (10.10.x.x) for web interface</small>
+                </div>
+            </div>
+            
+            <!-- ========== NOTES ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Additional Information</h3>
+                
+                <div class="form-group">
+                    <label for="{{ form.notes.id }}" class="form-label">Notes</label>
+                    {{ form.notes(class="form-control") }}
+                </div>
+            </div>
+            
+            <!-- ========== ACTION BUTTONS ========== -->
+            <div class="button-group">
+                <button type="submit" class="btn btn-success">
+                    <span style="margin-right: 8px;">✓</span> Add PDU
+                </button>
+                <a href="{{ url_for('pdus.index') }}" class="btn btn-cancel">
+                    <span style="margin-right: 8px;">✕</span> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ========== AUTO-UPPERCASE IDENTIFIER ==========
+document.getElementById('{{ form.identifier.id }}').addEventListener('input', function(e) {
+    // Keep "APC" uppercase
+    if (e.target.value.toLowerCase().startsWith('apc')) {
+        e.target.value = 'APC' + e.target.value.substring(3);
+    }
+});
+
+// ========== IP ADDRESS VALIDATION ==========
+document.getElementById('{{ form.ip_address.id }}').addEventListener('blur', function(e) {
+    const ip = e.target.value;
+    if (ip && !ip.startsWith('10.10.')) {
+        // Just a gentle reminder, not enforcement
+        console.log('Note: Management IPs are typically on 10.10.x.x network');
+    }
+});
+</script>
+{% endblock %}

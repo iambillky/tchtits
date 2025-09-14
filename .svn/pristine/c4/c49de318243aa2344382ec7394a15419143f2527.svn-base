@@ -1,0 +1,648 @@
+<!--
+File: templates/pdus/outlet_view.html
+Purpose: Detailed outlet mapping view for a PDU showing what's plugged where
+Version: 1.0.0
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with visual outlet map
+         Shows Bank 1 (1-12) and Bank 2 (13-24) separately
+         Displays connected devices with quick links
+         Load balancing visualization per bank
+-->
+
+{% extends "base.html" %}
+
+{% block title %}PDU Outlet Map - {{ pdu.identifier }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== PDU HEADER ========== */
+    .pdu-header {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.05));
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+    }
+    
+    .pdu-title-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+    }
+    
+    .pdu-title {
+        color: #f59e0b;
+        font-size: 2.5rem;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        margin-bottom: 10px;
+    }
+    
+    .pdu-location {
+        color: #e4e6eb;
+        font-size: 1.2rem;
+        margin-bottom: 5px;
+    }
+    
+    .pdu-circuit {
+        color: #8b92a5;
+        font-size: 1rem;
+    }
+    
+    .pdu-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    /* ========== PDU STATS ========== */
+    .pdu-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    .stat-label {
+        color: #8b92a5;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 5px;
+    }
+    
+    .stat-value {
+        color: #fbbf24;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+    
+    /* ========== BANK SECTIONS ========== */
+    .banks-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 25px;
+        margin-bottom: 30px;
+    }
+    
+    .bank-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+    }
+    
+    .bank-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .bank-title {
+        color: #60a5fa;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+    
+    .bank-load {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .load-bar {
+        width: 100px;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .load-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    
+    .load-low { background: #10b981; }
+    .load-medium { background: #f59e0b; }
+    .load-high { background: #ef4444; }
+    
+    .load-text {
+        color: #e4e6eb;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    
+    /* ========== OUTLET GRID ========== */
+    .outlet-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+    
+    .outlet-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 15px;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+    
+    .outlet-box:hover {
+        background: rgba(255, 255, 255, 0.05);
+        transform: translateY(-2px);
+    }
+    
+    .outlet-box.occupied {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    
+    .outlet-box.available {
+        background: rgba(16, 185, 129, 0.05);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+    
+    .outlet-number {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #f59e0b;
+        margin-bottom: 8px;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .outlet-status {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    
+    .outlet-status.free {
+        color: #10b981;
+    }
+    
+    .outlet-status.used {
+        color: #ef4444;
+    }
+    
+    .outlet-device {
+        font-size: 0.9rem;
+        color: #e4e6eb;
+        margin-top: 5px;
+    }
+    
+    .outlet-device a {
+        color: #60a5fa;
+        text-decoration: none;
+    }
+    
+    .outlet-device a:hover {
+        text-decoration: underline;
+    }
+    
+    .connection-type {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #8b92a5;
+    }
+    
+    .connection-type.primary {
+        background: rgba(96, 165, 250, 0.2);
+        color: #60a5fa;
+    }
+    
+    .connection-type.redundant {
+        background: rgba(167, 139, 250, 0.2);
+        color: #a78bfa;
+    }
+    
+    /* ========== MANAGEMENT SECTION ========== */
+    .management-section {
+        background: rgba(96, 165, 250, 0.05);
+        border: 1px solid rgba(96, 165, 250, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .mgmt-title {
+        color: #60a5fa;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+    
+    .mgmt-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(96, 165, 250, 0.1);
+        border: 1px solid rgba(96, 165, 250, 0.2);
+        border-radius: 8px;
+        padding: 10px 20px;
+        color: #60a5fa;
+        text-decoration: none;
+        font-family: 'Courier New', monospace;
+        font-size: 1.1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .mgmt-link:hover {
+        background: rgba(96, 165, 250, 0.2);
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+    
+    /* ========== LOAD SUMMARY ========== */
+    .load-summary {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .load-summary-title {
+        color: #fff;
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+    
+    .load-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+    }
+    
+    .load-detail-item {
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        text-align: center;
+    }
+    
+    .load-detail-label {
+        color: #8b92a5;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+    }
+    
+    .load-detail-value {
+        color: #e4e6eb;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+    
+    /* ========== EMPTY STATE ========== */
+    .empty-outlet {
+        text-align: center;
+        padding: 40px;
+        color: #8b92a5;
+        font-style: italic;
+    }
+    
+    /* ========== ACTION BAR ========== */
+    .action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 10px;
+    }
+    
+    @media (max-width: 768px) {
+        .banks-container {
+            grid-template-columns: 1fr;
+        }
+        
+        .outlet-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .pdu-title-section {
+            flex-direction: column;
+        }
+        
+        .pdu-actions {
+            margin-top: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">PDU Outlet Mapping</h1>
+    <p class="page-subtitle">Detailed view of outlet connections and load distribution</p>
+</div>
+
+<!-- ========== PDU HEADER INFORMATION ========== -->
+<div class="pdu-header">
+    <div class="pdu-title-section">
+        <div>
+            <div class="pdu-title">{{ pdu.identifier }}</div>
+            <div class="pdu-location">Rack: {{ pdu.rack.rack_id }}</div>
+            {% if pdu.circuit_id %}
+            <div class="pdu-circuit">Circuit: {{ pdu.circuit_id }}</div>
+            {% endif %}
+        </div>
+        <div class="pdu-actions">
+            <a href="{{ url_for('pdus.edit_pdu', pdu_id=pdu.id) }}" class="btn btn-secondary">
+                <span style="margin-right: 5px;">✏️</span> Edit PDU
+            </a>
+            <a href="{{ url_for('pdus.index') }}" class="btn btn-secondary">
+                <span style="margin-right: 5px;">📋</span> PDU List
+            </a>
+        </div>
+    </div>
+    
+    <div class="pdu-stats-grid">
+        <div class="stat-item">
+            <div class="stat-label">Capacity</div>
+            <div class="stat-value">{{ pdu.capacity_amps }}A</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Voltage</div>
+            <div class="stat-value">{{ pdu.voltage }}V</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Phase</div>
+            <div class="stat-value">{{ pdu.phase }}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Total Power</div>
+            <div class="stat-value">{{ pdu.watts_capacity }}W</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Outlets Used</div>
+            <div class="stat-value">{{ pdu.used_outlets }}/{{ pdu.total_outlets }}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Available</div>
+            <div class="stat-value">{{ pdu.available_outlets }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== MANAGEMENT INTERFACE ========== -->
+{% if pdu.ip_address %}
+<div class="management-section">
+    <div class="mgmt-title">📡 Management Interface</div>
+    <a href="http://{{ pdu.ip_address }}" target="_blank" class="mgmt-link">
+        <span>🌐</span>
+        <span>http://{{ pdu.ip_address }}</span>
+    </a>
+</div>
+{% endif %}
+
+<!-- ========== LOAD SUMMARY ========== -->
+<div class="load-summary">
+    <div class="load-summary-title">⚡ Estimated Load Analysis</div>
+    <div class="load-details">
+        <div class="load-detail-item">
+            <div class="load-detail-label">Bank 1 Load (Outlets 1-12)</div>
+            <div class="load-detail-value">
+                {% set bank1_load = (bank1|length * 1.25) if pdu.voltage == 120 else (bank1|length * 1.44) %}
+                {{ "%.1f"|format(bank1_load) }}A
+            </div>
+        </div>
+        <div class="load-detail-item">
+            <div class="load-detail-label">Bank 2 Load (Outlets 13-24)</div>
+            <div class="load-detail-value">
+                {% set bank2_load = (bank2|length * 1.25) if pdu.voltage == 120 else (bank2|length * 1.44) %}
+                {{ "%.1f"|format(bank2_load) }}A
+            </div>
+        </div>
+        <div class="load-detail-item">
+            <div class="load-detail-label">Total Estimated Load</div>
+            <div class="load-detail-value">
+                {{ "%.1f"|format(bank1_load + bank2_load) }}A
+            </div>
+        </div>
+        <div class="load-detail-item">
+            <div class="load-detail-label">Circuit Utilization</div>
+            <div class="load-detail-value">
+                {% set total_util = ((bank1_load + bank2_load) / pdu.capacity_amps * 100) if pdu.capacity_amps > 0 else 0 %}
+                {{ "%.1f"|format(total_util) }}%
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== OUTLET BANKS ========== -->
+<div class="banks-container">
+    <!-- ========== BANK 1 ========== -->
+    <div class="bank-card">
+        <div class="bank-header">
+            <div class="bank-title">Bank 1 (Outlets 1-12)</div>
+            <div class="bank-load">
+                <div class="load-bar">
+                    {% set bank1_percent = (bank1|selectattr('device')|list|length / 12 * 100) %}
+                    <div class="load-fill {% if bank1_percent < 60 %}load-low{% elif bank1_percent < 80 %}load-medium{% else %}load-high{% endif %}" 
+                         style="width: {{ bank1_percent }}%;">
+                    </div>
+                </div>
+                <span class="load-text">{{ bank1|selectattr('device')|list|length }}/12</span>
+            </div>
+        </div>
+        
+        <div class="outlet-grid">
+            {% for outlet in bank1 %}
+            <div class="outlet-box {% if outlet.device %}occupied{% else %}available{% endif %}">
+                <div class="outlet-number">#{{ outlet.number }}</div>
+                {% if outlet.device %}
+                    {% if outlet.device.connection == 'redundant' %}
+                        <span class="connection-type redundant">R</span>
+                    {% else %}
+                        <span class="connection-type primary">P</span>
+                    {% endif %}
+                    <div class="outlet-status used">OCCUPIED</div>
+                    <div class="outlet-device">
+                        {% if outlet.device.type == 'network' %}
+                            <a href="{{ url_for('network_devices.edit_device', device_id=outlet.device.id) if outlet.device.id else '#' }}">
+                                {{ outlet.device.device }}
+                            </a>
+                        {% else %}
+                            {{ outlet.device.device }}
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="outlet-status free">AVAILABLE</div>
+                    <div class="outlet-device">-</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- ========== BANK 2 ========== -->
+    <div class="bank-card">
+        <div class="bank-header">
+            <div class="bank-title">Bank 2 (Outlets 13-{{ pdu.total_outlets }})</div>
+            <div class="bank-load">
+                <div class="load-bar">
+                    {% set bank2_max = pdu.total_outlets - 12 %}
+                    {% set bank2_percent = (bank2|selectattr('device')|list|length / bank2_max * 100) if bank2_max > 0 else 0 %}
+                    <div class="load-fill {% if bank2_percent < 60 %}load-low{% elif bank2_percent < 80 %}load-medium{% else %}load-high{% endif %}" 
+                         style="width: {{ bank2_percent }}%;">
+                    </div>
+                </div>
+                <span class="load-text">{{ bank2|selectattr('device')|list|length }}/{{ bank2_max }}</span>
+            </div>
+        </div>
+        
+        <div class="outlet-grid">
+            {% if bank2 %}
+                {% for outlet in bank2 %}
+                <div class="outlet-box {% if outlet.device %}occupied{% else %}available{% endif %}">
+                    <div class="outlet-number">#{{ outlet.number }}</div>
+                    {% if outlet.device %}
+                        {% if outlet.device.connection == 'redundant' %}
+                            <span class="connection-type redundant">R</span>
+                        {% else %}
+                            <span class="connection-type primary">P</span>
+                        {% endif %}
+                        <div class="outlet-status used">OCCUPIED</div>
+                        <div class="outlet-device">
+                            {% if outlet.device.type == 'network' %}
+                                <a href="{{ url_for('network_devices.edit_device', device_id=outlet.device.id) if outlet.device.id else '#' }}">
+                                    {{ outlet.device.device }}
+                                </a>
+                            {% else %}
+                                {{ outlet.device.device }}
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="outlet-status free">AVAILABLE</div>
+                        <div class="outlet-device">-</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-outlet">
+                    No outlets in Bank 2 for this PDU
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ========== ACTION BAR ========== -->
+<div class="action-bar">
+    <a href="{{ url_for('pdus.index') }}" class="btn btn-secondary">
+        <span style="margin-right: 5px;">←</span> Back to PDU List
+    </a>
+    
+    <div class="btn-group">
+        <button onclick="printOutletMap()" class="btn btn-secondary">
+            <span style="margin-right: 5px;">🖨️</span> Print Map
+        </button>
+        <button onclick="exportOutletData()" class="btn btn-secondary">
+            <span style="margin-right: 5px;">📊</span> Export CSV
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ========== PRINT OUTLET MAP ==========
+function printOutletMap() {
+    window.print();
+}
+
+// ========== EXPORT OUTLET DATA ==========
+function exportOutletData() {
+    let csv = [];
+    
+    // Headers
+    csv.push(['PDU', 'Outlet', 'Bank', 'Status', 'Device', 'Connection Type'].join(','));
+    
+    // Bank 1 data
+    {% for outlet in bank1 %}
+    csv.push([
+        '{{ pdu.identifier }}',
+        '{{ outlet.number }}',
+        '1',
+        '{% if outlet.device %}Occupied{% else %}Available{% endif %}',
+        '{% if outlet.device %}{{ outlet.device.device }}{% else %}-{% endif %}',
+        '{% if outlet.device %}{{ outlet.device.connection }}{% else %}-{% endif %}'
+    ].join(','));
+    {% endfor %}
+    
+    // Bank 2 data
+    {% for outlet in bank2 %}
+    csv.push([
+        '{{ pdu.identifier }}',
+        '{{ outlet.number }}',
+        '2',
+        '{% if outlet.device %}Occupied{% else %}Available{% endif %}',
+        '{% if outlet.device %}{{ outlet.device.device }}{% else %}-{% endif %}',
+        '{% if outlet.device %}{{ outlet.device.connection }}{% else %}-{% endif %}'
+    ].join(','));
+    {% endfor %}
+    
+    // Download
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pdu_{{ pdu.identifier }}_outlets.csv';
+    a.click();
+}
+
+// ========== AUTO-REFRESH (Optional) ==========
+// Uncomment to auto-refresh every 30 seconds to see outlet changes
+// setInterval(() => {
+//     location.reload();
+// }, 30000);
+</script>
+
+<!-- ========== PRINT STYLES ========== -->
+<style media="print">
+    .page-header, .action-bar, .pdu-actions, .btn-group {
+        display: none !important;
+    }
+    
+    .banks-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .outlet-box {
+        break-inside: avoid;
+    }
+    
+    body {
+        background: white;
+        color: black;
+    }
+    
+    .pdu-title {
+        color: black;
+    }
+</style>
+{% endblock %}
