@@ -1,0 +1,288 @@
+<!--
+File: templates/ipam/suggest.html
+Purpose: Intelligently suggest next available IP based on criteria
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with IP suggestion interface
+          Replaces the "ping and pray" method entirely!
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Suggest Next IP - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .suggestion-card {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.05));
+        border: 2px solid rgba(34, 197, 94, 0.3);
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .suggested-ip {
+        font-size: 3rem;
+        font-weight: 700;
+        color: #10b981;
+        font-family: 'Courier New', monospace;
+        margin: 20px 0;
+    }
+    
+    .suggestion-details {
+        color: #8b92a5;
+        margin-bottom: 20px;
+    }
+    
+    .filter-card {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .filter-title {
+        color: #fff;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+    
+    .suggestion-type {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        margin: 5px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .suggestion-type:hover {
+        transform: translateY(-2px);
+    }
+    
+    .type-public {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    .type-private {
+        background: rgba(168, 85, 247, 0.2);
+        color: #a78bfa;
+        border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+    
+    .type-vps {
+        background: rgba(236, 72, 153, 0.2);
+        color: #f9a8d4;
+        border: 1px solid rgba(236, 72, 153, 0.3);
+    }
+    
+    .type-management {
+        background: rgba(251, 146, 60, 0.2);
+        color: #fb923c;
+        border: 1px solid rgba(251, 146, 60, 0.3);
+    }
+    
+    .alternative-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 15px;
+    }
+    
+    .alternative-ip {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-family: 'Courier New', monospace;
+        color: #e4e6eb;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .alternative-ip:hover {
+        background: rgba(96, 165, 250, 0.2);
+        border-color: #60a5fa;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🎯 Suggest Next Available IP</h1>
+    <p class="page-subtitle">Intelligent IP suggestion based on your criteria</p>
+</div>
+
+<!-- Main Suggestion -->
+{% if suggested_ip %}
+<div class="suggestion-card">
+    <div style="color: #10b981; font-size: 1.2rem; font-weight: 600;">
+        NEXT AVAILABLE IP
+    </div>
+    <div class="suggested-ip">{{ suggested_ip.address }}</div>
+    <div class="suggestion-details">
+        {% if suggested_ip.ip_range %}
+            <div>
+                <strong>Range:</strong> {{ suggested_ip.ip_range.start_ip }} - {{ suggested_ip.ip_range.end_ip }}
+            </div>
+            {% if suggested_ip.ip_range.vlan %}
+            <div>
+                <strong>VLAN:</strong> {{ suggested_ip.ip_range.vlan.vlan_number }} ({{ suggested_ip.ip_range.vlan.name }})
+            </div>
+            {% endif %}
+            {% if suggested_ip.ip_range.network %}
+            <div>
+                <strong>Network:</strong> {{ suggested_ip.ip_range.network.network }}
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+    <div>
+        <a href="{{ url_for('ipam.assign_ip') }}?ip={{ suggested_ip.address }}" 
+           class="btn btn-success btn-lg">
+            ✅ Assign This IP
+        </a>
+        <button class="btn btn-primary btn-lg" onclick="suggestAnother()">
+            🔄 Suggest Another
+        </button>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning text-center">
+    <h4>No Available IPs Found</h4>
+    <p>All IPs matching your criteria are currently assigned or reserved.</p>
+    <p>Try selecting different filters or adding new IP ranges.</p>
+</div>
+{% endif %}
+
+<!-- Filtering Options -->
+<div class="filter-card">
+    <div class="filter-title">Refine Suggestion Criteria</div>
+    
+    <form method="GET" action="{{ url_for('ipam.suggest') }}">
+        <div class="row">
+            <div class="col-md-4">
+                <label class="form-label">Connection Type</label>
+                <select name="type" class="form-select">
+                    <option value="any">Any Type</option>
+                    <option value="public" {% if request.args.get('type') == 'public' %}selected{% endif %}>
+                        Public IP
+                    </option>
+                    <option value="private" {% if request.args.get('type') == 'private' %}selected{% endif %}>
+                        Private IP
+                    </option>
+                    <option value="management" {% if request.args.get('type') == 'management' %}selected{% endif %}>
+                        Management IP
+                    </option>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label class="form-label">VLAN</label>
+                <select name="vlan" class="form-select">
+                    <option value="">Any VLAN</option>
+                    {% for vlan in vlans %}
+                    <option value="{{ vlan.id }}" {% if request.args.get('vlan') == vlan.id|string %}selected{% endif %}>
+                        VLAN {{ vlan.vlan_number }} - {{ vlan.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label class="form-label">Network</label>
+                <select name="network" class="form-select">
+                    <option value="">Any Network</option>
+                    {% for network in networks %}
+                    <option value="{{ network.id }}" {% if request.args.get('network') == network.id|string %}selected{% endif %}>
+                        {{ network.network }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+            <a href="{{ url_for('ipam.suggest') }}" class="btn btn-secondary">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Quick Suggestions by Type -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="filter-card text-center">
+            <a href="{{ url_for('ipam.suggest', type='public') }}" class="suggestion-type type-public">
+                🌐 Next Public IP
+            </a>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="filter-card text-center">
+            <a href="{{ url_for('ipam.suggest', type='private') }}" class="suggestion-type type-private">
+                🔒 Next Private IP
+            </a>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="filter-card text-center">
+            <a href="{{ url_for('ipam.suggest', pool='vps') }}" class="suggestion-type type-vps">
+                💻 Next VPS IP
+            </a>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="filter-card text-center">
+            <a href="{{ url_for('ipam.suggest', type='management') }}" class="suggestion-type type-management">
+                ⚙️ Next Mgmt IP
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Alternative Suggestions -->
+{% if alternatives %}
+<div class="filter-card">
+    <div class="filter-title">Alternative Available IPs</div>
+    <p style="color: #8b92a5;">Other available IPs matching your criteria:</p>
+    <div class="alternative-list">
+        {% for ip in alternatives[:20] %}
+        <div class="alternative-ip" onclick="selectIP('{{ ip.address }}')">
+            {{ ip.address }}
+        </div>
+        {% endfor %}
+    </div>
+    {% if alternatives|length > 20 %}
+    <p class="mt-2" style="color: #8b92a5;">
+        ... and {{ alternatives|length - 20 }} more available IPs
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectIP(ipAddress) {
+    if (confirm(`Use ${ipAddress} for assignment?`)) {
+        window.location.href = `{{ url_for('ipam.assign_ip') }}?ip=${ipAddress}`;
+    }
+}
+
+function suggestAnother() {
+    // Reload the page to get another suggestion
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('skip', (parseInt(urlParams.get('skip') || 0) + 1));
+    window.location.search = urlParams.toString();
+}
+</script>
+{% endblock %}

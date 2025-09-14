@@ -1,0 +1,683 @@
+<!--
+File: templates/ipam/assign.html
+Purpose: IP assignment interface with next available suggestion
+Version: 1.0.0
+Author: DCMS Team
+Created: 2025-01-14
+
+Revision History:
+- v1.0.0 (2025-01-14): Initial creation with smart IP suggestion
+                        Stops the "ping and pray" method
+                        VLAN-aware assignment with validation
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Assign IP Address{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== ASSIGNMENT FORM STYLES ========== */
+    
+    .assign-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    /* ========== SUGGESTION BOX ========== */
+    .suggestion-box {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(52, 211, 153, 0.05));
+        border: 2px solid rgba(16, 185, 129, 0.3);
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    .suggestion-title {
+        color: #10b981;
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .suggested-ip {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #34d399;
+        font-family: 'Courier New', monospace;
+        margin: 20px 0;
+    }
+    
+    .suggestion-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    
+    .suggestion-detail {
+        text-align: center;
+    }
+    
+    .detail-label {
+        color: #8b92a5;
+        font-size: 0.85rem;
+        margin-bottom: 5px;
+    }
+    
+    .detail-value {
+        color: #e4e6eb;
+        font-weight: 600;
+    }
+    
+    /* ========== ASSIGNMENT FORM ========== */
+    .assign-form {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 30px;
+    }
+    
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-label {
+        display: block;
+        color: #e4e6eb;
+        font-weight: 500;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .form-label .required {
+        color: #ef4444;
+        margin-left: 3px;
+    }
+    
+    .form-label .optional {
+        color: #8b92a5;
+        font-weight: 400;
+        font-size: 0.85rem;
+    }
+    
+    .form-control {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #fff;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.1);
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+    }
+    
+    .form-control:disabled {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #6b7280;
+        cursor: not-allowed;
+    }
+    
+    select.form-control {
+        cursor: pointer;
+    }
+    
+    .form-hint {
+        color: #8b92a5;
+        font-size: 0.85rem;
+        margin-top: 5px;
+    }
+    
+    /* ========== IP TYPE SELECTOR ========== */
+    .ip-type-selector {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .type-option {
+        flex: 1;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .type-option:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+    
+    .type-option.active {
+        background: rgba(96, 165, 250, 0.2);
+        border-color: #60a5fa;
+    }
+    
+    .type-option input[type="radio"] {
+        display: none;
+    }
+    
+    .type-label {
+        font-weight: 600;
+        color: #e4e6eb;
+        margin-bottom: 5px;
+    }
+    
+    .type-desc {
+        font-size: 0.85rem;
+        color: #8b92a5;
+    }
+    
+    /* ========== VLAN FILTER ========== */
+    .vlan-filter {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .vlan-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .vlan-chip {
+        padding: 6px 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+    }
+    
+    .vlan-chip:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+    
+    .vlan-chip.selected {
+        background: rgba(96, 165, 250, 0.2);
+        border-color: #60a5fa;
+        color: #60a5fa;
+    }
+    
+    /* ========== VALIDATION MESSAGES ========== */
+    .validation-message {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .validation-success {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #10b981;
+    }
+    
+    .validation-error {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #ef4444;
+    }
+    
+    .validation-warning {
+        background: rgba(245, 158, 11, 0.1);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        color: #f59e0b;
+    }
+    
+    /* ========== ACTION BUTTONS ========== */
+    .form-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* ========== AVAILABLE IPS TABLE ========== */
+    .available-ips {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 30px;
+    }
+    
+    .ip-table {
+        width: 100%;
+        margin-top: 15px;
+    }
+    
+    .ip-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #8b92a5;
+        font-weight: 600;
+        padding: 10px;
+        text-align: left;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .ip-table td {
+        padding: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        color: #e4e6eb;
+    }
+    
+    .ip-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+    
+    .ip-address {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+    }
+    
+    .select-ip-btn {
+        padding: 4px 12px;
+        background: rgba(96, 165, 250, 0.2);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        color: #60a5fa;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s ease;
+    }
+    
+    .select-ip-btn:hover {
+        background: rgba(96, 165, 250, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Assign IP Address</h1>
+    <p class="page-subtitle">Smart IP assignment - No more ping and pray!</p>
+</div>
+
+<div class="assign-container">
+    
+    <!-- ========== SUGGESTED IP ========== -->
+    {% if suggested_ip %}
+    <div class="suggestion-box">
+        <div class="suggestion-title">
+            <span>🎯</span>
+            <span>Recommended Next Available IP</span>
+        </div>
+        
+        <div class="suggested-ip">{{ suggested_ip.address }}</div>
+        
+        <div class="suggestion-details">
+            <div class="suggestion-detail">
+                <div class="detail-label">Network</div>
+                <div class="detail-value">{{ suggested_ip.ip_range.network.network }}</div>
+            </div>
+            <div class="suggestion-detail">
+                <div class="detail-label">VLAN</div>
+                <div class="detail-value">
+                    {% if suggested_ip.ip_range.vlan %}
+                        VLAN {{ suggested_ip.ip_range.vlan.vlan_number }}
+                    {% else %}
+                        No VLAN
+                    {% endif %}
+                </div>
+            </div>
+            <div class="suggestion-detail">
+                <div class="detail-label">Gateway</div>
+                <div class="detail-value">{{ suggested_ip.ip_range.gateway }}</div>
+            </div>
+            <div class="suggestion-detail">
+                <div class="detail-label">Type</div>
+                <div class="detail-value">
+                    {% if suggested_ip.address.startswith('10.') %}
+                        Private
+                    {% else %}
+                        Public
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <button type="button" class="btn btn-success mt-3" onclick="usesSuggestedIP()">
+            Use This IP
+        </button>
+    </div>
+    {% else %}
+    <div class="validation-message validation-warning">
+        <span>⚠️</span>
+        <span>No available IPs found with current filters. Try adjusting your criteria or add new IP ranges.</span>
+    </div>
+    {% endif %}
+    
+    <!-- ========== ASSIGNMENT FORM ========== -->
+    <div class="assign-form">
+        <form method="POST" action="{{ url_for('ipam.assign_ip') }}" id="assignForm">
+            {{ form.hidden_tag() }}
+            
+            <!-- IP Type Selection -->
+            <div class="ip-type-selector">
+                <label class="type-option active">
+                    <input type="radio" name="connection_type" value="public" checked>
+                    <div class="type-label">Public IP</div>
+                    <div class="type-desc">External facing IP</div>
+                </label>
+                
+                <label class="type-option">
+                    <input type="radio" name="connection_type" value="private">
+                    <div class="type-label">Private IP</div>
+                    <div class="type-desc">Internal network (10.x)</div>
+                </label>
+                
+                <label class="type-option">
+                    <input type="radio" name="connection_type" value="ipmi">
+                    <div class="type-label">Management IP</div>
+                    <div class="type-desc">IPMI/iDRAC/PDU</div>
+                </label>
+            </div>
+            
+            <!-- Main Form Fields -->
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">
+                        IP Address <span class="required">*</span>
+                    </label>
+                    <input type="text" 
+                           name="ip_address" 
+                           id="ipAddress"
+                           class="form-control" 
+                           placeholder="e.g., 208.76.80.5"
+                           value="{{ suggested_ip.address if suggested_ip }}"
+                           required>
+                    <div class="form-hint">Enter the IP to assign or use suggested</div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        Device Type <span class="required">*</span>
+                    </label>
+                    <select name="device_type" class="form-control" required>
+                        <option value="">-- Select Type --</option>
+                        <option value="server">Physical Server</option>
+                        <option value="vps">VPS Instance</option>
+                        <option value="hypervisor">VPS Hypervisor</option>
+                        <option value="switch">Network Switch</option>
+                        <option value="router">Router</option>
+                        <option value="firewall">Firewall</option>
+                        <option value="pdu">PDU</option>
+                        <option value="ipmi">IPMI Interface</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">
+                        Device ID <span class="required">*</span>
+                    </label>
+                    <input type="number" 
+                           name="device_id" 
+                           class="form-control" 
+                           placeholder="Device ID from system"
+                           required>
+                    <div class="form-hint">ID of the server/device being assigned this IP</div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        Is Primary IP?
+                    </label>
+                    <select name="is_primary" class="form-control">
+                        <option value="0">No - Add-on IP</option>
+                        <option value="1">Yes - Primary IP</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Optional Fields -->
+            <h3 style="color: #e4e6eb; margin: 25px 0 15px;">Optional Information</h3>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">
+                        Interface Name <span class="optional">(optional)</span>
+                    </label>
+                    <input type="text" 
+                           name="interface_name" 
+                           class="form-control" 
+                           placeholder="e.g., eth0, bond0, eno1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        MAC Address <span class="optional">(optional)</span>
+                    </label>
+                    <input type="text" 
+                           name="mac_address" 
+                           class="form-control" 
+                           placeholder="00:11:22:33:44:55"
+                           pattern="^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$">
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">
+                        VPS Hostname <span class="optional">(VPS only)</span>
+                    </label>
+                    <input type="text" 
+                           name="vps_hostname" 
+                           class="form-control" 
+                           placeholder="e.g., wasatch.aaronoz.com">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        PTR Record <span class="optional">(optional)</span>
+                    </label>
+                    <input type="text" 
+                           name="ptr_record" 
+                           class="form-control" 
+                           placeholder="Reverse DNS hostname">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">
+                    Notes <span class="optional">(optional)</span>
+                </label>
+                <textarea name="notes" 
+                          class="form-control" 
+                          rows="3" 
+                          placeholder="Any additional notes about this assignment"></textarea>
+            </div>
+            
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <a href="{{ url_for('ipam.index') }}" class="btn btn-secondary">Cancel</a>
+                <button type="button" class="btn btn-warning" onclick="checkDuplicate()">
+                    Check Availability
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Assign IP Address
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- ========== AVAILABLE IPS IN SAME RANGE ========== -->
+    {% if suggested_ip and available_nearby %}
+    <div class="available-ips">
+        <h3 style="color: #e4e6eb; margin-bottom: 15px;">Other Available IPs in Same Range</h3>
+        
+        <table class="ip-table">
+            <thead>
+                <tr>
+                    <th>IP Address</th>
+                    <th>Network</th>
+                    <th>VLAN</th>
+                    <th>Type</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ip in available_nearby[:10] %}
+                <tr>
+                    <td class="ip-address">{{ ip.address }}</td>
+                    <td>{{ ip.ip_range.network.network }}</td>
+                    <td>
+                        {% if ip.ip_range.vlan %}
+                            VLAN {{ ip.ip_range.vlan.vlan_number }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ip.address.startswith('10.') %}
+                            <span style="color: #a78bfa;">Private</span>
+                        {% else %}
+                            <span style="color: #60a5fa;">Public</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button type="button" 
+                                class="select-ip-btn" 
+                                onclick="selectIP('{{ ip.address }}')">
+                            Select
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if available_nearby|length > 10 %}
+        <div style="text-align: center; margin-top: 15px;">
+            <a href="{{ url_for('ipam.browse_available') }}" class="btn btn-outline-secondary">
+                View All {{ available_nearby|length }} Available IPs
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ========== USE SUGGESTED IP ==========
+function useSuggestedIP() {
+    // Already populated in the form
+    document.getElementById('ipAddress').focus();
+    // Highlight the field
+    document.getElementById('ipAddress').style.borderColor = '#10b981';
+    setTimeout(() => {
+        document.getElementById('ipAddress').style.borderColor = '';
+    }, 2000);
+}
+
+// ========== SELECT IP FROM TABLE ==========
+function selectIP(ipAddress) {
+    document.getElementById('ipAddress').value = ipAddress;
+    document.getElementById('ipAddress').focus();
+    // Scroll to form
+    document.querySelector('.assign-form').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ========== CHECK FOR DUPLICATE ==========
+function checkDuplicate() {
+    const ip = document.getElementById('ipAddress').value;
+    
+    if (!ip) {
+        alert('Please enter an IP address to check');
+        return;
+    }
+    
+    // In production, this would make an AJAX call
+    fetch(`/ipam/check-duplicate?ip=${ip}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.available) {
+                alert(`✅ IP ${ip} is available for assignment!`);
+            } else {
+                alert(`❌ IP ${ip} is already assigned to: ${data.assigned_to}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error checking IP:', error);
+        });
+}
+
+// ========== IP TYPE SELECTOR ==========
+document.querySelectorAll('.type-option').forEach(option => {
+    option.addEventListener('click', function() {
+        // Remove active from all
+        document.querySelectorAll('.type-option').forEach(opt => {
+            opt.classList.remove('active');
+        });
+        // Add active to clicked
+        this.classList.add('active');
+        // Check the radio
+        this.querySelector('input[type="radio"]').checked = true;
+        
+        // Adjust form based on type
+        const type = this.querySelector('input[type="radio"]').value;
+        if (type === 'private') {
+            // For private, suggest from 10.x range
+            // This would trigger a new suggestion via AJAX
+            console.log('Switching to private IP suggestions');
+        }
+    });
+});
+
+// ========== FORM VALIDATION ==========
+document.getElementById('assignForm').addEventListener('submit', function(e) {
+    const ip = document.getElementById('ipAddress').value;
+    
+    // Validate IP format
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipRegex.test(ip)) {
+        e.preventDefault();
+        alert('Please enter a valid IP address');
+        return false;
+    }
+    
+    // Confirm assignment
+    if (!confirm(`Assign IP ${ip} to this device?`)) {
+        e.preventDefault();
+        return false;
+    }
+});
+</script>
+{% endblock %}

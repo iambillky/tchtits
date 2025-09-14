@@ -1,0 +1,1275 @@
+<!--
+File: templates/pdus/outlet_view.html
+Purpose: Detailed outlet mapping view for a PDU showing what's plugged where
+Version: 1.6.0
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with visual outlet map
+         Shows Bank 1 (1-12) and Bank 2 (13-24) separately
+         Displays connected devices with quick links
+         Load balancing visualization per bank
+- v1.1.0: Added Model display in stats grid
+         Added Notes section below header
+         Complete PDU information display
+- v1.2.0: Made occupied outlets clickable to navigate to connected device
+         Enhanced tooltips to indicate clickability
+- v1.3.0: Modernized stats display with card-based design
+         Fixed model display formatting
+         Updated visual hierarchy for 2025 standards
+         Modernized power utilization display
+- v1.4.0: Removed redundant Quick Stats bar
+         Added Load Balance to main stats grid
+         Streamlined interface to reduce duplication
+- v1.5.0: Moved action buttons to header navigation area
+         Added bank load visualizations to Power Utilization
+         Enhanced power metrics with visual indicators
+- v1.6.0: Converted navigation to breadcrumb dropdown
+         Consolidated all actions into dropdown menu
+         Improved space efficiency in header
+-->
+
+{% extends "base.html" %}
+
+{% block title %}PDU Outlet Map - {{ pdu.identifier }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== PDU HEADER ========== */
+    .pdu-header {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.05));
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+    }
+    
+    .pdu-title-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+    }
+    
+    .pdu-info-container {
+        flex: 1;
+    }
+    
+    .pdu-title {
+        color: #f59e0b;
+        font-size: 2.5rem;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        margin-bottom: 10px;
+    }
+    
+    /* ========== BREADCRUMB NAVIGATION ========== */
+    .breadcrumb-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.1rem;
+        margin-bottom: 8px;
+    }
+
+    .breadcrumb-nav a {
+        color: #8b92a5;
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+
+    .breadcrumb-nav a:hover {
+        color: #e4e6eb;
+    }
+
+    .separator {
+        color: #6b7280;
+    }
+
+    .breadcrumb-current {
+        background: rgba(245, 158, 11, 0.1);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        color: #f59e0b;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        transition: all 0.2s;
+        font-size: 1.1rem;
+    }
+
+    .breadcrumb-current:hover {
+        background: rgba(245, 158, 11, 0.15);
+        border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 8px;
+        background: #1a1f2e;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        min-width: 240px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: none;
+        padding: 8px 0;
+    }
+
+    .dropdown.active .dropdown-menu {
+        display: block;
+    }
+
+    .dropdown-section {
+        padding: 0;
+    }
+
+    .dropdown-header {
+        color: #8b92a5;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 8px 16px 4px;
+        font-weight: 600;
+    }
+
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        color: #e4e6eb;
+        text-decoration: none;
+        transition: background 0.2s;
+        cursor: pointer;
+        background: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+        font-size: 0.9rem;
+    }
+
+    .dropdown-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+    }
+
+    .dropdown-item i {
+        width: 16px;
+        text-align: center;
+        color: #8b92a5;
+    }
+
+    .dropdown-item.danger {
+        color: #ef4444;
+    }
+
+    .dropdown-item.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .dropdown-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 8px 0;
+    }
+    
+    .pdu-circuit {
+        color: #8b92a5;
+        font-size: 1rem;
+    }
+    
+    /* ========== PDU STATS GRID - MODERNIZED ========== */
+    .pdu-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 15px;
+        margin-top: 25px;
+        padding-top: 25px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-card {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: all 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #f59e0b, #fbbf24);
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .stat-card:hover {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+        border-color: rgba(245, 158, 11, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+    }
+
+    .stat-card:hover::before {
+        opacity: 1;
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.1));
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        flex-shrink: 0;
+    }
+
+    .stat-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .stat-label {
+        color: #8b92a5;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+
+    .stat-value {
+        color: #f3f4f6;
+        font-size: 1.15rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stat-value.model {
+        font-family: 'Courier New', monospace;
+        color: #fbbf24;
+    }
+    
+    .stat-value.balance {
+        font-size: 1rem;
+        color: #fbbf24;
+    }
+
+    .ip-link {
+        color: #60a5fa;
+        text-decoration: none;
+        transition: color 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .ip-link:hover {
+        color: #93bbfc;
+    }
+    
+    /* ========== NOTES SECTION ========== */
+    .pdu-notes-section {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(245, 158, 11, 0.15);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .notes-header {
+        color: #f59e0b;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .notes-header i {
+        font-size: 0.95rem;
+    }
+    
+    .notes-content {
+        color: #e4e6eb;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+    
+    /* ========== BANK SECTIONS ========== */
+    .banks-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 25px;
+        margin-bottom: 30px;
+    }
+    
+    .bank-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+    }
+    
+    .bank-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .bank-title {
+        color: #f59e0b;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+    
+    .bank-usage {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .usage-text {
+        color: #8b92a5;
+        font-size: 0.9rem;
+    }
+    
+    .usage-value {
+        color: #fbbf24;
+        font-weight: 600;
+    }
+    
+    /* ========== OUTLET GRID ========== */
+    .outlet-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 10px;
+    }
+    
+    .outlet {
+        aspect-ratio: 1;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        border: 2px solid transparent;
+    }
+    
+    .outlet.available {
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    
+    .outlet.available:hover {
+        background: rgba(16, 185, 129, 0.2);
+        border-color: rgba(16, 185, 129, 0.5);
+        transform: scale(1.05);
+    }
+    
+    .outlet.occupied {
+        background: rgba(245, 158, 11, 0.1);
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+    
+    .outlet.occupied:hover {
+        background: rgba(245, 158, 11, 0.2);
+        border-color: rgba(245, 158, 11, 0.5);
+        transform: scale(1.05);
+    }
+    
+    .outlet-link {
+        text-decoration: none;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: inherit;
+    }
+    
+    .outlet-link:hover {
+        text-decoration: none;
+    }
+    
+    .outlet-number {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #e4e6eb;
+        margin-bottom: 4px;
+    }
+    
+    .outlet-status {
+        font-size: 0.75rem;
+        color: #8b92a5;
+    }
+    
+    .outlet-device {
+        font-size: 0.7rem;
+        color: #fbbf24;
+        text-align: center;
+        padding: 0 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
+    }
+    
+    .outlet.occupied:hover .outlet-device {
+        color: #fde047;
+        text-decoration: underline;
+    }
+    
+    /* ========== LOAD METERS ========== */
+    .load-meter {
+        margin-top: 20px;
+    }
+    
+    .meter-label {
+        color: #8b92a5;
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .meter-bar {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        height: 20px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .meter-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #10b981, #fbbf24);
+        transition: width 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 8px;
+    }
+    
+    .meter-fill.high-load {
+        background: linear-gradient(90deg, #fbbf24, #ef4444);
+    }
+    
+    .meter-percentage {
+        color: #000;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    /* ========== CONNECTED DEVICES TABLE ========== */
+    .devices-section {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .section-title {
+        color: #f59e0b;
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .devices-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .devices-table th {
+        background: rgba(245, 158, 11, 0.1);
+        color: #fbbf24;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid rgba(245, 158, 11, 0.2);
+    }
+    
+    .devices-table td {
+        padding: 12px;
+        color: #e4e6eb;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .devices-table tr:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+    
+    .device-link {
+        color: #60a5fa;
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    
+    .device-link:hover {
+        color: #93bbfc;
+        text-decoration: underline;
+    }
+    
+    .connection-type {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    .connection-type.primary {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+    }
+    
+    .connection-type.redundant {
+        background: rgba(96, 165, 250, 0.2);
+        color: #60a5fa;
+    }
+    
+    .btn-disconnect {
+        padding: 4px 12px;
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.85rem;
+    }
+    
+    .btn-disconnect:hover {
+        background: rgba(239, 68, 68, 0.3);
+        border-color: rgba(239, 68, 68, 0.5);
+    }
+    
+    /* ========== POWER CALCULATION - MODERNIZED ========== */
+    .power-calc {
+        background: linear-gradient(135deg, rgba(167, 139, 250, 0.12), rgba(167, 139, 250, 0.06));
+        border: 1px solid rgba(167, 139, 250, 0.25);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 25px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .power-calc::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #a78bfa, #c4b5fd);
+    }
+    
+    .power-calc-title {
+        color: #c4b5fd;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .power-calc-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+    }
+    
+    .power-metric {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+    
+    .power-metric:hover {
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(167, 139, 250, 0.1);
+    }
+    
+    .power-metric-label {
+        color: #9ca3af;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .power-metric-value {
+        color: #f3f4f6;
+        font-size: 1.8rem;
+        font-weight: 700;
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+    }
+    
+    .power-metric-unit {
+        color: #a78bfa;
+        font-size: 1rem;
+        font-weight: 400;
+    }
+    
+    .power-metric-note {
+        color: #8b92a5;
+        font-size: 0.75rem;
+        margin-top: 4px;
+    }
+    
+    .bank-load-metric {
+        grid-column: span 1;
+    }
+    
+    .mini-meter {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+        height: 16px;
+        overflow: hidden;
+        position: relative;
+        margin-top: 8px;
+    }
+    
+    .mini-meter-fill {
+        height: 100%;
+        transition: width 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: #000;
+    }
+    
+    .mini-meter-fill.bank1 {
+        background: linear-gradient(90deg, #10b981, #34d399);
+    }
+    
+    .mini-meter-fill.bank2 {
+        background: linear-gradient(90deg, #60a5fa, #93bbfc);
+    }
+    
+    .mini-meter-fill.high {
+        background: linear-gradient(90deg, #fbbf24, #ef4444);
+    }
+    
+    .bank-load-label {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    
+    /* ========== TOOLTIP ========== */
+    .outlet-tooltip {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1a1a1a;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+        margin-bottom: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    .outlet-tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: #1a1a1a;
+    }
+    
+    .outlet:hover .outlet-tooltip {
+        opacity: 1;
+    }
+    
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+        .banks-container {
+            grid-template-columns: 1fr;
+        }
+        
+        .pdu-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .outlet-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        .power-calc-content {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ========== PDU HEADER WITH BREADCRUMB DROPDOWN ========== -->
+<div class="pdu-header">
+    <div class="pdu-title-section">
+        <div class="pdu-info-container">
+            <div class="pdu-title">{{ pdu.identifier }}</div>
+            <nav class="breadcrumb-nav">
+                <a href="{{ url_for('datacenters.index') }}">{{ pdu.rack.floor.datacenter.code }}</a>
+                <span class="separator">→</span>
+                <a href="#">{{ pdu.rack.floor.actual_floor }}</a>
+                <span class="separator">→</span>
+                <a href="#">Rack {{ pdu.rack.rack_id }}</a>
+                <span class="separator">→</span>
+                <div class="dropdown">
+                    <button class="breadcrumb-current dropdown-toggle">
+                        {{ pdu.identifier }}
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-section">
+                            <div class="dropdown-header">PDU Actions</div>
+                            <a href="{{ url_for('pdus.edit_pdu', pdu_id=pdu.id) }}" class="dropdown-item">
+                                <i class="fas fa-edit"></i> Edit PDU
+                            </a>
+                            <button class="dropdown-item danger" onclick="confirmDelete()">
+                                <i class="fas fa-trash"></i> Delete PDU
+                            </button>
+                            <div class="dropdown-divider"></div>
+                            <button class="dropdown-item" onclick="quickConnect()">
+                                <i class="fas fa-plus-circle"></i> Quick Connect Device
+                            </button>
+                            <button class="dropdown-item" onclick="balanceLoad()">
+                                <i class="fas fa-balance-scale"></i> Balance Load
+                            </button>
+                        </div>
+                        <div class="dropdown-section">
+                            <div class="dropdown-header">Export & Data</div>
+                            <button class="dropdown-item" onclick="exportPDUInfo()">
+                                <i class="fas fa-download"></i> Export to JSON
+                            </button>
+                            <a href="{{ url_for('pdus.api_pdu_stats', pdu_id=pdu.id) }}" class="dropdown-item" target="_blank">
+                                <i class="fas fa-code"></i> View API Data
+                            </a>
+                        </div>
+                        <div class="dropdown-section">
+                            <div class="dropdown-header">Navigation</div>
+                            <a href="{{ url_for('pdus.index') }}" class="dropdown-item">
+                                <i class="fas fa-list"></i> All PDUs
+                            </a>
+                            <a href="{{ url_for('datacenters.index') }}" class="dropdown-item">
+                                <i class="fas fa-building"></i> Data Centers
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+            <div class="pdu-circuit">Circuit: {{ pdu.circuit_id or 'Not Specified' }}</div>
+        </div>
+    </div>
+    
+    <!-- ========== PDU STATS GRID - MODERNIZED ========== -->
+    <div class="pdu-stats-grid">
+        {% if pdu.model %}
+        <div class="stat-card">
+            <div class="stat-icon">📦</div>
+            <div class="stat-info">
+                <div class="stat-label">Model</div>
+                <div class="stat-value model">AP{{ pdu.model }}</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-info">
+                <div class="stat-label">Voltage</div>
+                <div class="stat-value">{{ pdu.voltage }}V</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">🔋</div>
+            <div class="stat-info">
+                <div class="stat-label">Capacity</div>
+                <div class="stat-value">{{ pdu.capacity_amps }}A</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">〰️</div>
+            <div class="stat-info">
+                <div class="stat-label">Phase</div>
+                <div class="stat-value">{{ pdu.phase }}</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">🔌</div>
+            <div class="stat-info">
+                <div class="stat-label">Outlets</div>
+                <div class="stat-value">{{ pdu.used_outlets }}/{{ pdu.total_outlets }}</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">⚖️</div>
+            <div class="stat-info">
+                <div class="stat-label">Load Balance</div>
+                <div class="stat-value balance">B1: {{ bank1_used }} | B2: {{ bank2_used }}</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">🔧</div>
+            <div class="stat-info">
+                <div class="stat-label">Circuit</div>
+                <div class="stat-value">{{ pdu.circuit_id or 'N/A' }}</div>
+            </div>
+        </div>
+        
+        {% if pdu.ip_address %}
+        <div class="stat-card">
+            <div class="stat-icon">🌐</div>
+            <div class="stat-info">
+                <div class="stat-label">Management IP</div>
+                <div class="stat-value">
+                    <a href="http://{{ pdu.ip_address }}" target="_blank" class="ip-link">
+                        {{ pdu.ip_address }} →
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="stat-card">
+            <div class="stat-icon">💡</div>
+            <div class="stat-info">
+                <div class="stat-label">Max Power</div>
+                <div class="stat-value">{{ pdu.watts_capacity }}W</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== NOTES SECTION ========== -->
+{% if pdu.notes %}
+<div class="pdu-notes-section">
+    <div class="notes-header">
+        <i class="fas fa-sticky-note"></i> Notes
+    </div>
+    <div class="notes-content">{{ pdu.notes }}</div>
+</div>
+{% endif %}
+
+<!-- ========== POWER CALCULATION - MODERNIZED WITH BANK LOADS ========== -->
+{% if connected_devices %}
+<div class="power-calc">
+    <div class="power-calc-title">⚡ Power Utilization Estimate</div>
+    <div class="power-calc-content">
+        <div class="power-metric">
+            <div class="power-metric-label">
+                🔌 Connected Devices
+            </div>
+            <div class="power-metric-value">
+                {{ connected_devices|length }}
+                <span class="power-metric-unit">devices</span>
+            </div>
+        </div>
+        
+        <div class="power-metric">
+            <div class="power-metric-label">
+                📊 Est. Load per Device
+            </div>
+            <div class="power-metric-value">
+                ~150
+                <span class="power-metric-unit">W</span>
+            </div>
+            <div class="power-metric-note">Average consumption</div>
+        </div>
+        
+        <div class="power-metric">
+            <div class="power-metric-label">
+                💪 Est. Total Load
+            </div>
+            <div class="power-metric-value">
+                ~{{ connected_devices|length * 150 }}
+                <span class="power-metric-unit">W</span>
+            </div>
+            <div class="power-metric-note">All devices combined</div>
+        </div>
+        
+        <div class="power-metric">
+            <div class="power-metric-label">
+                ⚡ Est. Current Draw
+            </div>
+            <div class="power-metric-value">
+                ~{{ "%.1f"|format((connected_devices|length * 150) / pdu.voltage) }}
+                <span class="power-metric-unit">A</span>
+            </div>
+            <div class="power-metric-note">{{ "%.0f"|format(((connected_devices|length * 150) / pdu.voltage) / pdu.capacity_amps * 100) }}% of capacity</div>
+        </div>
+        
+        <!-- Bank Load Visualizations -->
+        <div class="power-metric bank-load-metric">
+            <div class="power-metric-label">
+                🏦 Bank 1 Load
+            </div>
+            <div class="bank-load-label">
+                <span>Outlets Used</span>
+                <span>{{ bank1_used }}/12</span>
+            </div>
+            <div class="mini-meter">
+                <div class="mini-meter-fill bank1 {{ 'high' if (bank1_used/12*100) > 80 else '' }}" 
+                     style="width: {{ (bank1_used/12*100)|round|int }}%">
+                    {{ (bank1_used/12*100)|round|int }}%
+                </div>
+            </div>
+        </div>
+        
+        <div class="power-metric bank-load-metric">
+            <div class="power-metric-label">
+                🏦 Bank 2 Load
+            </div>
+            <div class="bank-load-label">
+                <span>Outlets Used</span>
+                <span>{{ bank2_used }}/12</span>
+            </div>
+            <div class="mini-meter">
+                <div class="mini-meter-fill bank2 {{ 'high' if (bank2_used/12*100) > 80 else '' }}" 
+                     style="width: {{ (bank2_used/12*100)|round|int }}%">
+                    {{ (bank2_used/12*100)|round|int }}%
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ========== OUTLET BANKS ========== -->
+<div class="banks-container">
+    <!-- Bank 1 (Outlets 1-12) -->
+    <div class="bank-card">
+        <div class="bank-header">
+            <div class="bank-title">Bank 1 (Outlets 1-12)</div>
+            <div class="bank-usage">
+                <span class="usage-text">Used:</span>
+                <span class="usage-value">{{ bank1_used }}/12</span>
+            </div>
+        </div>
+        
+        <div class="outlet-grid">
+            {% for outlet_num in range(1, 13) %}
+            <div class="outlet {{ 'occupied' if outlet_num in outlet_map else 'available' }}" 
+                 data-outlet="{{ outlet_num }}">
+                {% if outlet_num in outlet_map %}
+                    <!-- Occupied outlet - make it clickable -->
+                    <a href="{{ url_for('network_devices.edit_device', device_id=outlet_map[outlet_num]['device_id']) }}" 
+                       class="outlet-link">
+                        <div class="outlet-number">{{ outlet_num }}</div>
+                        <div class="outlet-device">{{ outlet_map[outlet_num]['device'] }}</div>
+                    </a>
+                    <div class="outlet-tooltip">
+                        {{ outlet_map[outlet_num]['device'] }} ({{ outlet_map[outlet_num]['connection'] }})
+                        <br>Click to view device
+                    </div>
+                {% else %}
+                    <!-- Available outlet -->
+                    <div class="outlet-number">{{ outlet_num }}</div>
+                    <div class="outlet-status">Open</div>
+                    <div class="outlet-tooltip">Click to connect device</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="load-meter">
+            <div class="meter-label">
+                <span>Bank 1 Load</span>
+                <span>{{ bank1_used }}/12 outlets</span>
+            </div>
+            <div class="meter-bar">
+                <div class="meter-fill {{ 'high-load' if (bank1_used/12*100) > 80 else '' }}" 
+                     style="width: {{ (bank1_used/12*100)|round|int }}%">
+                    <span class="meter-percentage">{{ (bank1_used/12*100)|round|int }}%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bank 2 (Outlets 13-24) -->
+    <div class="bank-card">
+        <div class="bank-header">
+            <div class="bank-title">Bank 2 (Outlets 13-24)</div>
+            <div class="bank-usage">
+                <span class="usage-text">Used:</span>
+                <span class="usage-value">{{ bank2_used }}/12</span>
+            </div>
+        </div>
+        
+        <div class="outlet-grid">
+            {% for outlet_num in range(13, 25) %}
+            <div class="outlet {{ 'occupied' if outlet_num in outlet_map else 'available' }}"
+                 data-outlet="{{ outlet_num }}">
+                {% if outlet_num in outlet_map %}
+                    <!-- Occupied outlet - make it clickable -->
+                    <a href="{{ url_for('network_devices.edit_device', device_id=outlet_map[outlet_num]['device_id']) }}" 
+                       class="outlet-link">
+                        <div class="outlet-number">{{ outlet_num }}</div>
+                        <div class="outlet-device">{{ outlet_map[outlet_num]['device'] }}</div>
+                    </a>
+                    <div class="outlet-tooltip">
+                        {{ outlet_map[outlet_num]['device'] }} ({{ outlet_map[outlet_num]['connection'] }})
+                        <br>Click to view device
+                    </div>
+                {% else %}
+                    <!-- Available outlet -->
+                    <div class="outlet-number">{{ outlet_num }}</div>
+                    <div class="outlet-status">Open</div>
+                    <div class="outlet-tooltip">Click to connect device</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="load-meter">
+            <div class="meter-label">
+                <span>Bank 2 Load</span>
+                <span>{{ bank2_used }}/12 outlets</span>
+            </div>
+            <div class="meter-bar">
+                <div class="meter-fill {{ 'high-load' if (bank2_used/12*100) > 80 else '' }}" 
+                     style="width: {{ (bank2_used/12*100)|round|int }}%">
+                    <span class="meter-percentage">{{ (bank2_used/12*100)|round|int }}%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== CONNECTED DEVICES ========== -->
+<div class="devices-section">
+    <div class="section-title">
+        <i class="fas fa-plug"></i> Connected Devices
+    </div>
+    
+    {% if connected_devices %}
+    <table class="devices-table">
+        <thead>
+            <tr>
+                <th>Device</th>
+                <th>Type</th>
+                <th>Outlet</th>
+                <th>Connection</th>
+                <th>Power (W)</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for device in connected_devices %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('network_devices.edit_device', device_id=device.id) }}" 
+                       class="device-link">
+                        {{ device.identifier }}
+                    </a>
+                </td>
+                <td>{{ device.device_type }}</td>
+                <td>
+                    {% if device.pdu_1_id == pdu.id %}
+                        {{ device.pdu_1_outlet }}
+                    {% elif device.pdu_2_id == pdu.id %}
+                        {{ device.pdu_2_outlet }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if device.pdu_1_id == pdu.id %}
+                        <span class="connection-type primary">Primary</span>
+                    {% else %}
+                        <span class="connection-type redundant">Redundant</span>
+                    {% endif %}
+                </td>
+                <td>{{ device.power_consumption or 'N/A' }}</td>
+                <td>
+                    <button class="btn-disconnect" onclick="disconnectDevice({{ device.id }})">
+                        Disconnect
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #8b92a5; text-align: center; padding: 20px;">
+        No devices currently connected to this PDU
+    </p>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Breadcrumb dropdown handler
+document.addEventListener('DOMContentLoaded', function() {
+    const dropdown = document.querySelector('.dropdown');
+    const toggle = document.querySelector('.dropdown-toggle');
+    
+    if (toggle) {
+        toggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            dropdown.classList.toggle('active');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function() {
+            dropdown.classList.remove('active');
+        });
+        
+        // Prevent dropdown from closing when clicking inside
+        const dropdownMenu = document.querySelector('.dropdown-menu');
+        if (dropdownMenu) {
+            dropdownMenu.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+    }
+});
+
+function confirmDelete() {
+    if (confirm('Are you sure you want to delete PDU {{ pdu.identifier }}? This action cannot be undone.')) {
+        fetch('{{ url_for("pdus.delete_pdu", pdu_id=pdu.id) }}', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '{{ url_for("pdus.index") }}';
+            } else {
+                alert('Error: ' + data.message);
+            }
+        });
+    }
+}
+
+function disconnectDevice(deviceId) {
+    if (confirm('Disconnect this device from the PDU?')) {
+        // TODO: Implement disconnect functionality
+        alert('Disconnect functionality to be implemented');
+    }
+}
+
+function quickConnect() {
+    // TODO: Implement quick connect modal
+    alert('Quick connect feature coming soon!');
+}
+
+function balanceLoad() {
+    const bank1 = {{ bank1_used }};
+    const bank2 = {{ bank2_used }};
+    
+    if (Math.abs(bank1 - bank2) <= 1) {
+        alert('Load is already balanced! Bank 1: ' + bank1 + ', Bank 2: ' + bank2);
+    } else {
+        alert('Load balancing suggestions:\nBank 1: ' + bank1 + ' outlets\nBank 2: ' + bank2 + ' outlets\n\nConsider moving devices from Bank ' + (bank1 > bank2 ? '1' : '2') + ' to Bank ' + (bank1 > bank2 ? '2' : '1'));
+    }
+}
+
+function exportPDUInfo() {
+    const info = {
+        pdu: '{{ pdu.identifier }}',
+        location: '{{ pdu.rack.rack_id }}',
+        model: '{{ pdu.model or "N/A" }}',
+        voltage: {{ pdu.voltage }},
+        capacity: {{ pdu.capacity_amps }},
+        outlets_used: {{ pdu.used_outlets }},
+        outlets_total: {{ pdu.total_outlets }},
+        bank1_used: {{ bank1_used }},
+        bank2_used: {{ bank2_used }}
+    };
+    
+    const dataStr = JSON.stringify(info, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = 'pdu_{{ pdu.identifier }}_info.json';
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+}
+
+// Outlet click handler for available outlets only
+document.querySelectorAll('.outlet.available').forEach(outlet => {
+    outlet.addEventListener('click', function() {
+        const outletNum = this.dataset.outlet;
+        console.log('Clicked available outlet:', outletNum);
+        // TODO: Open device connection modal
+    });
+});
+</script>
+{% endblock %}

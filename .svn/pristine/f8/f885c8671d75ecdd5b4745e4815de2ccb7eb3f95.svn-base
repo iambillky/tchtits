@@ -1,0 +1,313 @@
+<!--
+File: templates/ipam/history.html
+Purpose: Display complete IP assignment history and audit trail
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with history view
+          Complete audit trail of all IP operations
+-->
+
+{% extends "base.html" %}
+
+{% block title %}IP History - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .history-filters {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .history-table {
+        font-size: 0.95rem;
+    }
+    
+    .action-badge {
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .action-assign {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+    }
+    
+    .action-release {
+        background: rgba(251, 146, 60, 0.2);
+        color: #fb923c;
+    }
+    
+    .action-reserve {
+        background: rgba(168, 85, 247, 0.2);
+        color: #a855f7;
+    }
+    
+    .action-quarantine-end {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+    }
+    
+    .ip-link {
+        font-family: 'Courier New', monospace;
+        color: #60a5fa;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    
+    .ip-link:hover {
+        color: #93bbfc;
+        text-decoration: underline;
+    }
+    
+    .device-link {
+        color: #a78bfa;
+        text-decoration: none;
+    }
+    
+    .device-link:hover {
+        color: #c4b5fd;
+    }
+    
+    .timeline-marker {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+    
+    .marker-today {
+        background: #ef4444;
+    }
+    
+    .marker-week {
+        background: #fb923c;
+    }
+    
+    .marker-month {
+        background: #3b82f6;
+    }
+    
+    .marker-old {
+        background: #6b7280;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">IP Assignment History</h1>
+            <p class="page-subtitle">Complete audit trail of all IP operations</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="exportHistory()">
+                📊 Export to CSV
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="history-filters">
+    <form method="GET" action="{{ url_for('ipam.history') }}" class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">IP Address</label>
+            <input type="text" name="ip" class="form-control" 
+                   placeholder="e.g., 208.76.80.5"
+                   value="{{ request.args.get('ip', '') }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Device Type</label>
+            <select name="device_type" class="form-select">
+                <option value="">All Types</option>
+                <option value="server" {% if request.args.get('device_type') == 'server' %}selected{% endif %}>Server</option>
+                <option value="vps" {% if request.args.get('device_type') == 'vps' %}selected{% endif %}>VPS</option>
+                <option value="switch" {% if request.args.get('device_type') == 'switch' %}selected{% endif %}>Switch</option>
+                <option value="pdu" {% if request.args.get('device_type') == 'pdu' %}selected{% endif %}>PDU</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Device ID</label>
+            <input type="number" name="device_id" class="form-control" 
+                   placeholder="Device ID"
+                   value="{{ request.args.get('device_id', '') }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">&nbsp;</label>
+            <div>
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
+                <a href="{{ url_for('ipam.history') }}" class="btn btn-secondary">Clear</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- History Table -->
+{% if history_items %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark-custom history-table">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Timestamp</th>
+                        <th style="width: 100px;">Action</th>
+                        <th style="width: 140px;">IP Address</th>
+                        <th>Device</th>
+                        <th>Performed By</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in history_items %}
+                    <tr>
+                        <td>
+                            {% set days_ago = (datetime.utcnow() - item.performed_at).days %}
+                            <span class="timeline-marker 
+                                {% if days_ago == 0 %}marker-today
+                                {% elif days_ago <= 7 %}marker-week
+                                {% elif days_ago <= 30 %}marker-month
+                                {% else %}marker-old{% endif %}">
+                            </span>
+                            {{ item.performed_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td>
+                            <span class="action-badge action-{{ item.action.replace('_', '-') }}">
+                                {{ item.action.replace('_', ' ') }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('ipam.search_results', ip=item.ip_address.address) }}" 
+                               class="ip-link">
+                                {{ item.ip_address.address }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if item.assigned_to_type %}
+                                <span class="device-link">
+                                    {{ item.assigned_to_type|title }} #{{ item.assigned_to_id }}
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ item.performed_by or 'system' }}</td>
+                        <td>
+                            {% if item.details %}
+                                <small>{{ item.details|truncate(100) }}</small>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if history_items|length >= 100 %}
+        <div class="alert alert-info mt-3">
+            Showing most recent 100 entries. Use filters to find specific records.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mt-3">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h4>{{ history_items|selectattr('action', 'equalto', 'assign')|list|length }}</h4>
+                <p class="mb-0">Assignments</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h4>{{ history_items|selectattr('action', 'equalto', 'release')|list|length }}</h4>
+                <p class="mb-0">Releases</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h4>{{ history_items|selectattr('action', 'equalto', 'reserve')|list|length }}</h4>
+                <p class="mb-0">Reservations</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h4>{{ history_items|selectattr('action', 'equalto', 'quarantine_end')|list|length }}</h4>
+                <p class="mb-0">Quarantine Ends</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <h3>No History Found</h3>
+        <p class="text-muted">
+            {% if filtered %}
+                No history matches your filters. Try adjusting the criteria.
+            {% else %}
+                No IP assignment history yet. History will appear here as IPs are assigned and released.
+            {% endif %}
+        </p>
+        {% if filtered %}
+        <a href="{{ url_for('ipam.history') }}" class="btn btn-primary mt-3">
+            Clear Filters
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function exportHistory() {
+    // Build CSV content
+    let csv = 'Timestamp,Action,IP Address,Device Type,Device ID,Performed By,Details\n';
+    
+    const rows = document.querySelectorAll('.history-table tbody tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const data = [
+            cells[0].textContent.trim(),
+            cells[1].textContent.trim(),
+            cells[2].textContent.trim(),
+            cells[3].textContent.trim() || '-',
+            cells[3].textContent.includes('#') ? cells[3].textContent.split('#')[1] : '-',
+            cells[4].textContent.trim(),
+            cells[5].textContent.trim() || '-'
+        ];
+        csv += data.map(d => `"${d}"`).join(',') + '\n';
+    });
+    
+    // Download
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ip_history_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+</script>
+{% endblock %}

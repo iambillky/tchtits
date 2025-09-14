@@ -1,0 +1,216 @@
+"""
+File: migrate_ipam.py
+Purpose: Safely create IPAM tables without affecting existing database
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with safe table checks
+          Only creates tables that don't exist
+          Verifies foreign key references
+- v1.0.1: Fixed to check for 'datacenters' table (not 'data_center')
+
+Run this BEFORE starting the app with new IPAM code:
+    python migrate_ipam.py
+"""
+
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect, text
+import sys
+
+# ========== SETUP FLASK APP ==========
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dcms.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# ========== INITIALIZE DATABASE ==========
+
+from models.datacenter import db
+db.init_app(app)
+
+# ========== CHECK EXISTING TABLES ==========
+
+def check_existing_tables():
+    """Check what tables already exist"""
+    with app.app_context():
+        inspector = inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        print("=" * 60)
+        print("EXISTING TABLES IN DATABASE:")
+        print("=" * 60)
+        for table in existing_tables:
+            print(f"  ✓ {table}")
+        print()
+        
+        return existing_tables
+
+def verify_datacenter_table():
+    """Verify the datacenters table exists"""
+    with app.app_context():
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        
+        if 'datacenters' not in tables:
+            print("❌ ERROR: 'datacenters' table not found!")
+            print("   Found tables:", tables)
+            
+            print("\n⚠️  No datacenters table found.")
+            print("   Please run the app once without IPAM to create base tables.")
+            return False
+        
+        print("✓ datacenters table found and verified")
+        return True
+
+def create_ipam_tables_safely():
+    """Create only the new IPAM tables"""
+    with app.app_context():
+        try:
+            # Import IPAM models
+            print("\n" + "=" * 60)
+            print("IMPORTING IPAM MODELS...")
+            print("=" * 60)
+            
+            from models.ipam import (
+                Network, VLAN, IPRange, IPPool, 
+                IPAddress, IPHistory
+            )
+            print("✓ IPAM models imported successfully")
+            
+            # Get list of tables to create
+            ipam_tables = [
+                'networks', 'vlans', 'ip_ranges', 
+                'ip_pools', 'ip_addresses', 'ip_history'
+            ]
+            
+            # Check which ones already exist
+            inspector = inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            tables_to_create = []
+            tables_already_exist = []
+            
+            for table in ipam_tables:
+                if table in existing_tables:
+                    tables_already_exist.append(table)
+                else:
+                    tables_to_create.append(table)
+            
+            # Report status
+            print("\n" + "=" * 60)
+            print("TABLE CREATION PLAN:")
+            print("=" * 60)
+            
+            if tables_already_exist:
+                print("\n⚠️  Tables that ALREADY EXIST (will skip):")
+                for table in tables_already_exist:
+                    print(f"  - {table}")
+            
+            if tables_to_create:
+                print("\n✅ Tables to CREATE:")
+                for table in tables_to_create:
+                    print(f"  - {table}")
+            else:
+                print("\n✓ All IPAM tables already exist!")
+                return True
+            
+            # Create the tables
+            print("\n" + "=" * 60)
+            print("CREATING NEW TABLES...")
+            print("=" * 60)
+            
+            # This will only create tables that don't exist
+            db.create_all()
+            
+            print("✓ Table creation completed successfully!")
+            
+            # Verify all IPAM tables now exist
+            inspector = inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            print("\n" + "=" * 60)
+            print("VERIFICATION:")
+            print("=" * 60)
+            
+            all_good = True
+            for table in ipam_tables:
+                if table in existing_tables:
+                    print(f"  ✓ {table} exists")
+                else:
+                    print(f"  ❌ {table} MISSING!")
+                    all_good = False
+            
+            return all_good
+            
+        except Exception as e:
+            print(f"\n❌ ERROR during table creation: {str(e)}")
+            print("\nDETAILS:")
+            import traceback
+            traceback.print_exc()
+            return False
+
+def test_ipam_models():
+    """Test that IPAM models work correctly"""
+    with app.app_context():
+        try:
+            print("\n" + "=" * 60)
+            print("TESTING IPAM MODELS...")
+            print("=" * 60)
+            
+            from models.ipam import Network, VLAN, IPAddress
+            
+            # Test query (shouldn't fail even if empty)
+            network_count = Network.query.count()
+            vlan_count = VLAN.query.count()
+            ip_count = IPAddress.query.count()
+            
+            print(f"  Networks: {network_count}")
+            print(f"  VLANs: {vlan_count}")
+            print(f"  IP Addresses: {ip_count}")
+            print("\n✓ IPAM models are working correctly!")
+            
+            return True
+            
+        except Exception as e:
+            print(f"\n❌ ERROR testing models: {str(e)}")
+            return False
+
+# ========== MAIN MIGRATION PROCESS ==========
+
+def main():
+    """Main migration process"""
+    print("\n" + "=" * 60)
+    print(" DCMS IPAM TABLE MIGRATION SCRIPT")
+    print("=" * 60)
+    print("\nThis script will safely add IPAM tables to your database.")
+    print("It will NOT affect existing tables.\n")
+    
+    # Step 1: Check existing tables
+    existing = check_existing_tables()
+    
+    # Step 2: Verify datacenters table exists
+    if not verify_datacenter_table():
+        print("\n❌ MIGRATION ABORTED: Missing datacenters table!")
+        sys.exit(1)
+    
+    # Step 3: Create IPAM tables
+    if not create_ipam_tables_safely():
+        print("\n❌ MIGRATION FAILED: See errors above")
+        sys.exit(1)
+    
+    # Step 4: Test the models
+    if not test_ipam_models():
+        print("\n⚠️  WARNING: Models may not be working correctly")
+        print("   But tables were created successfully")
+    
+    # Success!
+    print("\n" + "=" * 60)
+    print(" ✅ MIGRATION COMPLETED SUCCESSFULLY!")
+    print("=" * 60)
+    print("\nYou can now safely run the app with IPAM enabled.")
+    print("Run: python app.py")
+
+if __name__ == '__main__':
+    main()

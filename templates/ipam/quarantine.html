@@ -1,0 +1,250 @@
+<!--
+File: templates/ipam/quarantine.html
+Purpose: Display IPs currently in 90-day quarantine
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with quarantine list
+          Shows days remaining and previous assignment info
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Quarantined IPs - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .quarantine-header {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .quarantine-title {
+        color: #ef4444;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+    
+    .days-group {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+    
+    .days-group-header {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 12px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-weight: 600;
+        color: #fff;
+    }
+    
+    .days-remaining-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-left: 10px;
+    }
+    
+    .days-critical {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+    }
+    
+    .days-warning {
+        background: rgba(251, 146, 60, 0.2);
+        color: #fb923c;
+    }
+    
+    .days-normal {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+    }
+    
+    .ip-row {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        transition: background 0.2s;
+    }
+    
+    .ip-row:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+    
+    .ip-row:last-child {
+        border-bottom: none;
+    }
+    
+    .ip-address {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+        color: #e4e6eb;
+        width: 150px;
+    }
+    
+    .previous-assignment {
+        flex: 1;
+        color: #8b92a5;
+        font-size: 0.9rem;
+    }
+    
+    .release-info {
+        color: #8b92a5;
+        font-size: 0.85rem;
+        text-align: right;
+        width: 200px;
+    }
+    
+    .action-buttons {
+        width: 150px;
+        text-align: right;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Quarantined IP Addresses</h1>
+    <p class="page-subtitle">IPs in 90-day cooling off period before becoming available again</p>
+</div>
+
+<!-- Quarantine Summary -->
+<div class="quarantine-header">
+    <div class="quarantine-title">⏰ Quarantine Status</div>
+    <div class="row">
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #fff;">{{ total_count }}</div>
+            <div style="color: #8b92a5;">Total IPs in Quarantine</div>
+        </div>
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #ef4444;">
+                {{ grouped.get(0, [])|length + grouped.get(1, [])|length }}
+            </div>
+            <div style="color: #8b92a5;">Expiring in 48 hours</div>
+        </div>
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #fb923c;">
+                {% set week_count = 0 %}
+                {% for days in range(2, 8) %}
+                    {% set week_count = week_count + grouped.get(days, [])|length %}
+                {% endfor %}
+                {{ week_count }}
+            </div>
+            <div style="color: #8b92a5;">Expiring this week</div>
+        </div>
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;">
+                {% set month_count = 0 %}
+                {% for days in range(8, 31) %}
+                    {% set month_count = month_count + grouped.get(days, [])|length %}
+                {% endfor %}
+                {{ month_count }}
+            </div>
+            <div style="color: #8b92a5;">Expiring this month</div>
+        </div>
+    </div>
+</div>
+
+{% if quarantined %}
+<!-- Grouped by Days Remaining -->
+{% for days, ips in grouped.items()|sort %}
+<div class="days-group">
+    <div class="days-group-header">
+        {% if days <= 1 %}
+            Expiring Tomorrow
+            <span class="days-remaining-badge days-critical">{{ days }} day{% if days != 1 %}s{% endif %}</span>
+        {% elif days <= 7 %}
+            Expiring This Week
+            <span class="days-remaining-badge days-warning">{{ days }} days</span>
+        {% elif days <= 30 %}
+            Expiring This Month
+            <span class="days-remaining-badge days-normal">{{ days }} days</span>
+        {% else %}
+            {{ days }} Days Remaining
+            <span class="days-remaining-badge days-normal">{{ days }} days</span>
+        {% endif %}
+        <span style="float: right; color: #8b92a5;">{{ ips|length }} IP{% if ips|length != 1 %}s{% endif %}</span>
+    </div>
+    
+    {% for ip in ips %}
+    <div class="ip-row">
+        <div class="ip-address">{{ ip.address }}</div>
+        <div class="previous-assignment">
+            Previously: 
+            {% if ip.assigned_to_type %}
+                {{ ip.assigned_to_type|title }} #{{ ip.assigned_to_id }}
+                {% if ip.vps_hostname %}
+                    ({{ ip.vps_hostname }})
+                {% endif %}
+            {% else %}
+                Unknown
+            {% endif %}
+        </div>
+        <div class="release-info">
+            Released {{ ip.release_date.strftime('%Y-%m-%d') }}
+            <br>
+            <small>by {{ ip.released_by or 'unknown' }}</small>
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-sm btn-outline-info" 
+                    onclick="window.location.href='{{ url_for('ipam.search_results', ip=ip.address) }}'">
+                View Details
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+<!-- Admin Actions -->
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">Admin Actions</h5>
+        <p>Quarantine is designed to prevent accidental IP reuse. However, in special cases:</p>
+        <div class="d-flex gap-2">
+            <button class="btn btn-warning" onclick="processExpired()">
+                Process Expired Quarantines Now
+            </button>
+            <button class="btn btn-danger" onclick="alert('This feature requires admin privileges')">
+                Force Clear All Quarantines
+            </button>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- No IPs in Quarantine -->
+<div class="card">
+    <div class="card-body text-center py-5">
+        <h3>No IPs Currently in Quarantine</h3>
+        <p class="text-muted">Released IPs will appear here during their 90-day cooling off period</p>
+        <a href="{{ url_for('ipam.index') }}" class="btn btn-primary mt-3">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function processExpired() {
+    if (confirm('Process all expired quarantines and make IPs available?')) {
+        // This would call the process_quarantine_expirations endpoint
+        alert('Processing expired quarantines...');
+        window.location.reload();
+    }
+}
+</script>
+{% endblock %}

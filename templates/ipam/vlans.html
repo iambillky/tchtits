@@ -1,0 +1,196 @@
+<!--
+File: templates/ipam/vlans.html
+Purpose: List all VLANs with their associated IP ranges
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with VLAN listing
+          Shows VLAN number, name, type, and IP ranges
+-->
+
+{% extends "base.html" %}
+
+{% block title %}VLANs - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .vlan-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .badge-private {
+        background: rgba(168, 85, 247, 0.2);
+        color: #a78bfa;
+    }
+    
+    .badge-colo {
+        background: rgba(236, 72, 153, 0.2);
+        color: #f9a8d4;
+    }
+    
+    .badge-vps {
+        background: rgba(34, 197, 94, 0.2);
+        color: #86efac;
+    }
+    
+    .badge-vrf {
+        background: rgba(251, 146, 60, 0.2);
+        color: #fdba74;
+    }
+    
+    .ip-range-tag {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">VLAN Configuration</h1>
+            <p class="page-subtitle">VLANs and their IP range mappings</p>
+        </div>
+        <a href="{{ url_for('ipam.add_vlan') }}" class="btn btn-primary">
+            <span style="margin-right: 8px;">🔧</span> Add VLAN
+        </a>
+    </div>
+</div>
+
+{% if vlans %}
+<div class="card">
+    <div class="card-body">
+        <table class="table table-dark-custom">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">VLAN</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>VRF</th>
+                    <th>IP Ranges</th>
+                    <th style="width: 120px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vlan in vlans %}
+                <tr>
+                    <td>
+                        <strong style="color: #60a5fa;">{{ vlan.vlan_number }}</strong>
+                    </td>
+                    <td>{{ vlan.name or '-' }}</td>
+                    <td>{{ vlan.description or '-' }}</td>
+                    <td>
+                        {% if vlan.is_private %}
+                            <span class="vlan-badge badge-private">Private</span>
+                        {% endif %}
+                        {% if vlan.is_colo %}
+                            <span class="vlan-badge badge-colo">Colo</span>
+                        {% endif %}
+                        {% if vlan.is_vps %}
+                            <span class="vlan-badge badge-vps">VPS</span>
+                        {% endif %}
+                        {% if not vlan.is_private and not vlan.is_colo and not vlan.is_vps %}
+                            <span class="vlan-badge" style="background: rgba(96, 165, 250, 0.2); color: #60a5fa;">Public</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if vlan.vrf %}
+                            <span class="vlan-badge badge-vrf">{{ vlan.vrf }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if vlan.ip_ranges.count() > 0 %}
+                            {% for range in vlan.ip_ranges.limit(3).all() %}
+                                <span class="ip-range-tag">
+                                    {{ range.start_ip }}-{{ range.end_ip.split('.')[-1] }}
+                                </span>
+                            {% endfor %}
+                            {% if vlan.ip_ranges.count() > 3 %}
+                                <span class="text-muted">+{{ vlan.ip_ranges.count() - 3 }} more</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">No ranges assigned</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{{ url_for('ipam.add_range') }}?vlan_id={{ vlan.id }}" 
+                               class="btn btn-outline-primary" title="Add IP Range">
+                                <span>➕</span>
+                            </a>
+                            <button class="btn btn-outline-warning" title="Edit VLAN">
+                                <span>✏️</span>
+                            </button>
+                            <button class="btn btn-outline-danger" title="Delete VLAN">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- VLAN Summary -->
+<div class="row mt-3">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #fff;">{{ vlans|length }}</h3>
+                <p class="mb-0">Total VLANs</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #60a5fa;">{{ vlans|selectattr('is_private', 'equalto', False)|selectattr('is_colo', 'equalto', False)|list|length }}</h3>
+                <p class="mb-0">Public VLANs</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #a78bfa;">{{ vlans|selectattr('is_private')|list|length }}</h3>
+                <p class="mb-0">Private VLANs</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #f9a8d4;">{{ vlans|selectattr('is_colo')|list|length }}</h3>
+                <p class="mb-0">Colo VLANs</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <h3>No VLANs Configured</h3>
+        <p class="text-muted">Start by adding your first VLAN</p>
+        <a href="{{ url_for('ipam.add_vlan') }}" class="btn btn-primary mt-3">
+            <span style="margin-right: 8px;">🔧</span> Add First VLAN
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

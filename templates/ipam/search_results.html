@@ -1,0 +1,343 @@
+<!--
+File: templates/ipam/search_results.html
+Purpose: Display IP search results with detailed information
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with IP search results display
+          Shows IP status, assignment, history
+-->
+
+{% extends "base.html" %}
+
+{% block title %}IP Search Results - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ip-status-badge {
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    
+    .status-available {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+    }
+    
+    .status-assigned {
+        background: rgba(251, 146, 60, 0.2);
+        color: #fb923c;
+    }
+    
+    .status-quarantine {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+    }
+    
+    .status-reserved {
+        background: rgba(168, 85, 247, 0.2);
+        color: #a855f7;
+    }
+    
+    .status-gateway {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+    }
+    
+    .ip-details-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+    }
+    
+    .detail-row {
+        display: flex;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .detail-label {
+        width: 150px;
+        color: #8b92a5;
+        font-weight: 500;
+    }
+    
+    .detail-value {
+        flex: 1;
+        color: #e4e6eb;
+    }
+    
+    .history-timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    
+    .history-item {
+        position: relative;
+        padding: 10px 0;
+        border-left: 2px solid rgba(255, 255, 255, 0.1);
+        margin-left: 8px;
+        padding-left: 20px;
+    }
+    
+    .history-item::before {
+        content: '';
+        position: absolute;
+        left: -7px;
+        top: 15px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #60a5fa;
+        border: 2px solid #1a1f2e;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">IP Search Results</h1>
+    <p class="page-subtitle">Searching for: <strong>{{ search_ip }}</strong></p>
+</div>
+
+{% if ip %}
+<!-- IP Found -->
+<div class="ip-details-card mb-3">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h2 style="color: #fff; font-family: 'Courier New', monospace;">{{ ip.address }}</h2>
+            <span class="ip-status-badge status-{{ ip.status }}">
+                {{ ip.status|upper }}
+            </span>
+        </div>
+        <div class="btn-group">
+            {% if ip.status == 'available' %}
+                <a href="{{ url_for('ipam.assign_ip') }}?ip={{ ip.address }}" class="btn btn-success">
+                    Assign This IP
+                </a>
+            {% elif ip.status == 'assigned' %}
+                <button onclick="confirmRelease({{ ip.id }})" class="btn btn-warning">
+                    Release IP
+                </button>
+            {% elif ip.status == 'quarantine' %}
+                <button class="btn btn-secondary" disabled>
+                    In Quarantine Until {{ ip.quarantine_until.strftime('%Y-%m-%d') }}
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- IP Details -->
+    <div class="row">
+        <div class="col-md-6">
+            <h5 style="color: #fff; margin-bottom: 15px;">Network Information</h5>
+            
+            <div class="detail-row">
+                <span class="detail-label">IP Range:</span>
+                <span class="detail-value">
+                    {% if ip.ip_range %}
+                        {{ ip.ip_range.start_ip }} - {{ ip.ip_range.end_ip }}
+                    {% else %}
+                        Not assigned to range
+                    {% endif %}
+                </span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">Network:</span>
+                <span class="detail-value">
+                    {% if ip.ip_range and ip.ip_range.network %}
+                        {{ ip.ip_range.network.network }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">VLAN:</span>
+                <span class="detail-value">
+                    {% if ip.ip_range and ip.ip_range.vlan %}
+                        VLAN {{ ip.ip_range.vlan.vlan_number }} ({{ ip.ip_range.vlan.name }})
+                    {% else %}
+                        No VLAN assigned
+                    {% endif %}
+                </span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">Gateway:</span>
+                <span class="detail-value">
+                    {% if ip.ip_range %}
+                        {{ ip.ip_range.gateway_ip or '-' }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <h5 style="color: #fff; margin-bottom: 15px;">Assignment Information</h5>
+            
+            {% if ip.status == 'assigned' %}
+                <div class="detail-row">
+                    <span class="detail-label">Assigned To:</span>
+                    <span class="detail-value">
+                        {{ ip.assigned_to_type|title }} #{{ ip.assigned_to_id }}
+                        {% if ip.vps_hostname %}
+                            ({{ ip.vps_hostname }})
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Assignment Date:</span>
+                    <span class="detail-value">
+                        {{ ip.assignment_date.strftime('%Y-%m-%d %H:%M') if ip.assignment_date else '-' }}
+                    </span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Assigned By:</span>
+                    <span class="detail-value">{{ ip.assigned_by or '-' }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Connection Type:</span>
+                    <span class="detail-value">
+                        {{ ip.connection_type|title if ip.connection_type else '-' }}
+                        {% if ip.is_primary %}
+                            <span class="badge bg-primary">Primary</span>
+                        {% endif %}
+                    </span>
+                </div>
+                
+                {% if ip.mac_address %}
+                <div class="detail-row">
+                    <span class="detail-label">MAC Address:</span>
+                    <span class="detail-value">{{ ip.mac_address }}</span>
+                </div>
+                {% endif %}
+                
+            {% elif ip.status == 'quarantine' %}
+                <div class="detail-row">
+                    <span class="detail-label">Released Date:</span>
+                    <span class="detail-value">{{ ip.release_date.strftime('%Y-%m-%d') if ip.release_date else '-' }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Released By:</span>
+                    <span class="detail-value">{{ ip.released_by or '-' }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Quarantine Until:</span>
+                    <span class="detail-value" style="color: #ef4444;">
+                        {{ ip.quarantine_until.strftime('%Y-%m-%d') if ip.quarantine_until else '-' }}
+                        ({{ (ip.quarantine_until - datetime.utcnow()).days }} days remaining)
+                    </span>
+                </div>
+                
+            {% elif ip.status == 'reserved' %}
+                <div class="detail-row">
+                    <span class="detail-label">Reserved For:</span>
+                    <span class="detail-value">{{ ip.notes or 'No reason specified' }}</span>
+                </div>
+                
+            {% else %}
+                <div class="alert alert-info">
+                    This IP is available for assignment.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if ip.notes %}
+    <div class="mt-3">
+        <h5 style="color: #fff;">Notes</h5>
+        <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 6px;">
+            {{ ip.notes }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- IP History -->
+{% if ip.history.count() > 0 %}
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Assignment History</h5>
+        <div class="history-timeline">
+            {% for history_item in ip.history.order_by(IPHistory.performed_at.desc()).limit(10).all() %}
+            <div class="history-item">
+                <div style="color: #fff; font-weight: 500;">
+                    {{ history_item.action|title }}
+                    {% if history_item.assigned_to_type %}
+                        - {{ history_item.assigned_to_type|title }} #{{ history_item.assigned_to_id }}
+                    {% endif %}
+                </div>
+                <div style="color: #8b92a5; font-size: 0.9rem;">
+                    {{ history_item.performed_at.strftime('%Y-%m-%d %H:%M') }}
+                    by {{ history_item.performed_by }}
+                </div>
+                {% if history_item.details %}
+                <div style="color: #e4e6eb; font-size: 0.9rem; margin-top: 5px;">
+                    {{ history_item.details }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- IP Not Found -->
+<div class="alert alert-warning">
+    <h4 class="alert-heading">IP Address Not Found</h4>
+    <p>The IP address <strong>{{ search_ip }}</strong> is not currently tracked in the system.</p>
+    <hr>
+    <p class="mb-0">This could mean:</p>
+    <ul>
+        <li>The IP is outside of your configured network ranges</li>
+        <li>The IP range containing this address hasn't been added yet</li>
+        <li>There was a typo in the IP address</li>
+    </ul>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">What would you like to do?</h5>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('ipam.index') }}" class="btn btn-primary">
+                Back to Dashboard
+            </a>
+            <a href="{{ url_for('ipam.add_range') }}" class="btn btn-success">
+                Add IP Range
+            </a>
+            <a href="{{ url_for('ipam.networks') }}" class="btn btn-secondary">
+                View Networks
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmRelease(ipId) {
+    if (confirm('Are you sure you want to release this IP? It will be quarantined for 90 days.')) {
+        // In production, this would POST to the release endpoint
+        window.location.href = `{{ url_for('ipam.release_ip', ip_id=0) }}`.replace('/0', '/' + ipId);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,194 @@
+<!--
+File: templates/ipam/networks.html
+Purpose: List all networks with stats and management options
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with network listing
+          Shows utilization, IP counts, and management links
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Networks - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .network-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .utilization-bar {
+        width: 100px;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .utilization-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    
+    .utilization-low { background: #10b981; }
+    .utilization-medium { background: #f59e0b; }
+    .utilization-high { background: #ef4444; }
+    
+    .badge-bgp {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+    
+    .badge-private {
+        background: rgba(168, 85, 247, 0.2);
+        color: #a78bfa;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">Network Blocks</h1>
+            <p class="page-subtitle">Manage top-level network definitions</p>
+        </div>
+        <a href="{{ url_for('ipam.add_network') }}" class="btn btn-primary">
+            <span style="margin-right: 8px;">➕</span> Add Network
+        </a>
+    </div>
+</div>
+
+{% if networks %}
+<div class="card">
+    <div class="card-body">
+        <table class="table table-dark-custom network-table">
+            <thead>
+                <tr>
+                    <th>Network</th>
+                    <th>Description</th>
+                    <th>Data Center</th>
+                    <th>Total IPs</th>
+                    <th>Available</th>
+                    <th>Assigned</th>
+                    <th>Utilization</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for network in networks %}
+                <tr>
+                    <td>
+                        <strong>{{ network.network }}</strong>
+                    </td>
+                    <td>{{ network.description or '-' }}</td>
+                    <td>{{ network.datacenter.code if network.datacenter else '-' }}</td>
+                    <td>{{ network.stats.total }}</td>
+                    <td>
+                        <span style="color: #10b981;">{{ network.stats.available }}</span>
+                    </td>
+                    <td>
+                        <span style="color: #f59e0b;">{{ network.stats.assigned }}</span>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="utilization-bar">
+                                {% set util = network.stats.utilization %}
+                                <div class="utilization-fill 
+                                    {% if util < 50 %}utilization-low
+                                    {% elif util < 80 %}utilization-medium
+                                    {% else %}utilization-high{% endif %}"
+                                    style="width: {{ util }}%;">
+                                </div>
+                            </div>
+                            <small>{{ network.stats.utilization }}%</small>
+                        </div>
+                    </td>
+                    <td>
+                        {% if network.bgp_advertised %}
+                            <span class="badge-bgp">BGP</span>
+                        {% endif %}
+                        {% if not network.is_public %}
+                            <span class="badge-private">Private</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{{ url_for('ipam.add_range', network_id=network.id) }}" 
+                               class="btn btn-outline-primary" title="Add IP Range">
+                                <span>📊</span>
+                            </a>
+                            <button class="btn btn-outline-info" title="View Details">
+                                <span>👁️</span>
+                            </button>
+                            <button class="btn btn-outline-warning" title="Edit">
+                                <span>✏️</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="row mt-3">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #fff;">{{ networks|length }}</h3>
+                <p class="mb-0">Total Networks</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #10b981;">{{ networks|selectattr('bgp_advertised')|list|length }}</h3>
+                <p class="mb-0">BGP Advertised</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #f59e0b;">{{ networks|selectattr('is_public', 'equalto', False)|list|length }}</h3>
+                <p class="mb-0">Private Networks</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3 style="color: #60a5fa;">{{ networks|selectattr('is_public')|list|length }}</h3>
+                <p class="mb-0">Public Networks</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <h3>No Networks Configured</h3>
+        <p class="text-muted">Start by adding your first network block</p>
+        <a href="{{ url_for('ipam.add_network') }}" class="btn btn-primary mt-3">
+            <span style="margin-right: 8px;">➕</span> Add First Network
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

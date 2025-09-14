@@ -1,0 +1,196 @@
+<!--
+File: templates/ipam/add_range.html
+Purpose: Form to add IP ranges within networks
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with IP range addition form
+          Creates actual trackable IP addresses
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Add IP Range - IPAM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Add IP Range</h1>
+    <p class="page-subtitle">Define assignable IP ranges within a network</p>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            
+            <!-- Parent Network -->
+            <div class="mb-3">
+                {{ form.network_id.label(class="form-label") }}
+                {{ form.network_id(class="form-select") }}
+                {% if form.network_id.errors %}
+                    <div class="text-danger">
+                        {% for error in form.network_id.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">Select the parent network block</small>
+            </div>
+            
+            <!-- VLAN Assignment -->
+            <div class="mb-3">
+                {{ form.vlan_id.label(class="form-label") }}
+                {{ form.vlan_id(class="form-select") }}
+                {% if form.vlan_id.errors %}
+                    <div class="text-danger">
+                        {% for error in form.vlan_id.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">Optional: Associate with a VLAN</small>
+            </div>
+            
+            <!-- IP Range -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        {{ form.start_ip.label(class="form-label") }}
+                        {{ form.start_ip(class="form-control") }}
+                        {% if form.start_ip.errors %}
+                            <div class="text-danger">
+                                {% for error in form.start_ip.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        {{ form.end_ip.label(class="form-label") }}
+                        {{ form.end_ip(class="form-control") }}
+                        {% if form.end_ip.errors %}
+                            <div class="text-danger">
+                                {% for error in form.end_ip.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gateway and Netmask -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        {{ form.gateway.label(class="form-label") }}
+                        {{ form.gateway(class="form-control") }}
+                        {% if form.gateway.errors %}
+                            <div class="text-danger">
+                                {% for error in form.gateway.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">Gateway IP (will be marked as non-assignable)</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        {{ form.netmask.label(class="form-label") }}
+                        {{ form.netmask(class="form-control") }}
+                        {% if form.netmask.errors %}
+                            <div class="text-danger">
+                                {% for error in form.netmask.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Range Type and Status -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        {{ form.range_type.label(class="form-label") }}
+                        {{ form.range_type(class="form-select") }}
+                        {% if form.range_type.errors %}
+                            <div class="text-danger">
+                                {% for error in form.range_type.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        {{ form.status.label(class="form-label") }}
+                        {{ form.status(class="form-select") }}
+                        {% if form.status.errors %}
+                            <div class="text-danger">
+                                {% for error in form.status.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Description -->
+            <div class="mb-3">
+                {{ form.description.label(class="form-label") }}
+                {{ form.description(class="form-control") }}
+                {% if form.description.errors %}
+                    <div class="text-danger">
+                        {% for error in form.description.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Create IPs Option -->
+            <div class="mb-3">
+                <div class="form-check">
+                    {{ form.create_ips(class="form-check-input") }}
+                    {{ form.create_ips.label(class="form-check-label") }}
+                </div>
+                <small class="form-text text-muted">
+                    Pre-creates all IP address records in this range. 
+                    This allows immediate tracking and assignment.
+                </small>
+            </div>
+            
+            <!-- Submit Buttons -->
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('ipam.networks') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Help Section -->
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">IP Range Examples</h5>
+        <ul class="mb-0">
+            <li><strong>Public range:</strong> 208.76.80.4 to 208.76.80.126 (gateway: 208.76.80.3)</li>
+            <li><strong>Private range:</strong> 10.10.4.2 to 10.10.7.254 (gateway: 10.10.4.1)</li>
+            <li><strong>VPS pool:</strong> 208.76.84.192 to 208.76.84.207 (small /28 subnet)</li>
+            <li><strong>Management:</strong> 10.0.0.1 to 10.0.0.254 (for switches/PDUs)</li>
+        </ul>
+        <div class="alert alert-info mt-3">
+            <strong>Note:</strong> The gateway IP will automatically be marked as non-assignable.
+            Network and broadcast addresses (.0 and .255) will also be marked appropriately.
+        </div>
+    </div>
+</div>
+{% endblock %}

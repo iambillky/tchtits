@@ -1,0 +1,329 @@
+<!--
+File: templates/ipam/vps_pools.html
+Purpose: Manage VPS IP pools for hypervisors
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with VPS pool management
+          Track IP pools per hypervisor (vps8, vps14, etc.)
+-->
+
+{% extends "base.html" %}
+
+{% block title %}VPS Pools - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .vps-header {
+        background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(168, 85, 247, 0.05));
+        border: 1px solid rgba(147, 51, 234, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .vps-title {
+        color: #a855f7;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+    
+    .pool-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        transition: all 0.3s;
+    }
+    
+    .pool-card:hover {
+        background: rgba(255, 255, 255, 0.05);
+        transform: translateY(-2px);
+    }
+    
+    .pool-name {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 10px;
+    }
+    
+    .pool-vlan {
+        display: inline-block;
+        background: rgba(96, 165, 250, 0.2);
+        color: #60a5fa;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin-bottom: 10px;
+    }
+    
+    .pool-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin: 15px 0;
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: #8b92a5;
+    }
+    
+    .ip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 8px;
+        margin-top: 15px;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+    }
+    
+    .ip-item {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .ip-available {
+        color: #10b981;
+        border-color: rgba(34, 197, 94, 0.3);
+    }
+    
+    .ip-available:hover {
+        background: rgba(34, 197, 94, 0.2);
+    }
+    
+    .ip-assigned {
+        color: #fb923c;
+        border-color: rgba(251, 146, 60, 0.3);
+    }
+    
+    .ip-assigned:hover {
+        background: rgba(251, 146, 60, 0.2);
+    }
+    
+    .hypervisor-badge {
+        background: rgba(236, 72, 153, 0.2);
+        color: #f9a8d4;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+    }
+    
+    .utilization-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 10px;
+    }
+    
+    .utilization-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    
+    .utilization-low { background: #10b981; }
+    .utilization-medium { background: #f59e0b; }
+    .utilization-high { background: #ef4444; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">VPS IP Pools</h1>
+            <p class="page-subtitle">Manage IP allocations for VPS hypervisors</p>
+        </div>
+        <a href="{{ url_for('ipam.add_pool') }}" class="btn btn-primary">
+            <span style="margin-right: 8px;">➕</span> Add VPS Pool
+        </a>
+    </div>
+</div>
+
+<div class="vps-header">
+    <div class="vps-title">💻 VPS Pool Overview</div>
+    <div class="row mt-3">
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #fff;">{{ vps_pools|length }}</div>
+            <div style="color: #8b92a5;">Active Pools</div>
+        </div>
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #10b981;">
+                {{ vps_pools|map(attribute='available_count')|sum }}
+            </div>
+            <div style="color: #8b92a5;">Available IPs</div>
+        </div>
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #fb923c;">
+                {{ vps_pools|map(attribute='assigned_count')|sum }}
+            </div>
+            <div style="color: #8b92a5;">Assigned IPs</div>
+        </div>
+        <div class="col-md-3">
+            <div style="font-size: 2rem; font-weight: 700; color: #60a5fa;">
+                {{ vps_pools|map(attribute='total_ips')|sum }}
+            </div>
+            <div style="color: #8b92a5;">Total Pool IPs</div>
+        </div>
+    </div>
+</div>
+
+<!-- VPS Pool List -->
+{% if vps_pools %}
+{% for pool in vps_pools %}
+<div class="pool-card">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <div class="pool-name">{{ pool.name }}</div>
+            {% if pool.vlan %}
+            <span class="pool-vlan">VLAN {{ pool.vlan.vlan_number }}</span>
+            {% endif %}
+            {% if pool.hypervisor_id %}
+            <span class="hypervisor-badge">Hypervisor #{{ pool.hypervisor_id }}</span>
+            {% endif %}
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary" onclick="assignFromPool({{ pool.id }})">
+                Assign IP
+            </button>
+            <button class="btn btn-sm btn-outline-info" onclick="toggleIPs('pool-{{ pool.id }}')">
+                View IPs
+            </button>
+            <button class="btn btn-sm btn-outline-warning">
+                Edit
+            </button>
+        </div>
+    </div>
+    
+    <!-- Pool Statistics -->
+    <div class="pool-stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ pool.total_ips }}</div>
+            <div class="stat-label">Total IPs</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" style="color: #10b981;">{{ pool.available_count }}</div>
+            <div class="stat-label">Available</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" style="color: #fb923c;">{{ pool.assigned_count }}</div>
+            <div class="stat-label">Assigned</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ pool.utilization }}%</div>
+            <div class="stat-label">Utilization</div>
+        </div>
+    </div>
+    
+    <!-- Utilization Bar -->
+    <div class="utilization-bar">
+        {% set util = pool.utilization %}
+        <div class="utilization-fill 
+            {% if util < 50 %}utilization-low
+            {% elif util < 80 %}utilization-medium
+            {% else %}utilization-high{% endif %}"
+            style="width: {{ util }}%;">
+        </div>
+    </div>
+    
+    <!-- Pool Description -->
+    {% if pool.description %}
+    <div style="color: #8b92a5; margin-top: 10px; font-size: 0.9rem;">
+        {{ pool.description }}
+    </div>
+    {% endif %}
+    
+    <!-- IP List (hidden by default) -->
+    <div class="ip-grid" id="pool-{{ pool.id }}" style="display: none;">
+        {% for ip in pool.ip_addresses.limit(50).all() %}
+        <div class="ip-item {% if ip.status == 'available' %}ip-available{% else %}ip-assigned{% endif %}"
+             onclick="viewIP('{{ ip.address }}')"
+             title="{% if ip.status == 'assigned' %}Assigned to {{ ip.assigned_to_type }} #{{ ip.assigned_to_id }}{% else %}Available{% endif %}">
+            {{ ip.address }}
+        </div>
+        {% endfor %}
+        {% if pool.ip_addresses.count() > 50 %}
+        <div style="grid-column: 1/-1; text-align: center; color: #8b92a5;">
+            ... and {{ pool.ip_addresses.count() - 50 }} more IPs
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+<!-- VPS VLAN Mapping Reference -->
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">VPS VLAN Assignments</h5>
+        <p style="color: #8b92a5;">Based on your core switch configuration:</p>
+        <ul class="mb-0">
+            <li><strong>VLAN 3:</strong> VPS15 (208.76.84.192/27)</li>
+            <li><strong>VLAN 12:</strong> VPS8, VPS9, VPS10, VPS11 (208.76.83.0/24)</li>
+            <li><strong>VLAN 13:</strong> thebox (208.76.82.128/25)</li>
+            <li><strong>VLAN 17:</strong> VPS14 (208.76.208.0/27)</li>
+            <li><strong>VLAN 111:</strong> Mixed VPS pools (multiple ranges)</li>
+        </ul>
+    </div>
+</div>
+
+{% else %}
+<!-- No VPS Pools -->
+<div class="card">
+    <div class="card-body text-center py-5">
+        <h3>No VPS Pools Configured</h3>
+        <p class="text-muted">VPS pools help manage IP allocations for virtual server instances</p>
+        <a href="{{ url_for('ipam.add_pool') }}" class="btn btn-primary mt-3">
+            <span style="margin-right: 8px;">➕</span> Create First VPS Pool
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleIPs(poolId) {
+    const element = document.getElementById(poolId);
+    if (element.style.display === 'none') {
+        element.style.display = 'grid';
+    } else {
+        element.style.display = 'none';
+    }
+}
+
+function viewIP(ipAddress) {
+    window.location.href = `{{ url_for('ipam.search_results') }}?ip=${ipAddress}`;
+}
+
+function assignFromPool(poolId) {
+    // This would navigate to the assign page with pool pre-selected
+    window.location.href = `{{ url_for('ipam.assign_ip') }}?pool=${poolId}`;
+}
+</script>
+{% endblock %}

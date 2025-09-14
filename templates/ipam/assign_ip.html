@@ -1,0 +1,277 @@
+<!--
+File: templates/ipam/assign_ip.html
+Purpose: Form to assign IP addresses to devices - replaces "ping and pray"!
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with IP assignment form
+          Shows suggested IP and alternatives
+          Prevents duplicate assignments
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Assign IP Address - IPAM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .suggested-ip {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.05));
+        border: 2px solid rgba(34, 197, 94, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .suggested-ip-title {
+        color: #10b981;
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+    }
+    
+    .suggested-ip-address {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .alternative-ips {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+    }
+    
+    .alternative-ip-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #e4e6eb;
+        padding: 5px 10px;
+        margin: 2px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .alternative-ip-btn:hover {
+        background: rgba(96, 165, 250, 0.2);
+        border-color: #60a5fa;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Assign IP Address</h1>
+    <p class="page-subtitle">No more ping and pray! Intelligently assign the next available IP.</p>
+</div>
+
+<!-- Suggested IP Section -->
+{% if suggested_ip %}
+<div class="suggested-ip">
+    <div class="suggested-ip-title">🎯 Suggested Next Available IP</div>
+    <div class="suggested-ip-address">{{ suggested_ip.address }}</div>
+    <div class="mt-2" style="color: #8b92a5;">
+        {% if suggested_ip.ip_range %}
+            Range: {{ suggested_ip.ip_range.start_ip }} - {{ suggested_ip.ip_range.end_ip }}
+            {% if suggested_ip.ip_range.vlan %}
+                | VLAN {{ suggested_ip.ip_range.vlan.vlan_number }}
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning">
+    <strong>No Available IPs!</strong> All IPs in the selected criteria are assigned or reserved.
+    Try selecting a different VLAN or network.
+</div>
+{% endif %}
+
+<!-- Assignment Form -->
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('ipam.assign_ip') }}">
+            {{ form.hidden_tag() }}
+            
+            <!-- IP Address -->
+            <div class="mb-3">
+                {{ form.ip_address.label(class="form-label") }}
+                {{ form.ip_address(class="form-control", value=suggested_ip.address if suggested_ip else '') }}
+                {% if form.ip_address.errors %}
+                    <div class="text-danger">
+                        {% for error in form.ip_address.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">You can use the suggested IP or enter a different one</small>
+            </div>
+            
+            <!-- Device Type -->
+            <div class="mb-3">
+                {{ form.device_type.label(class="form-label") }}
+                {{ form.device_type(class="form-select") }}
+                {% if form.device_type.errors %}
+                    <div class="text-danger">
+                        {% for error in form.device_type.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Device ID -->
+            <div class="mb-3">
+                {{ form.device_id.label(class="form-label") }}
+                {{ form.device_id(class="form-control") }}
+                {% if form.device_id.errors %}
+                    <div class="text-danger">
+                        {% for error in form.device_id.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">Enter the device ID (will be Server ID once servers module is ready)</small>
+            </div>
+            
+            <!-- Connection Type -->
+            <div class="mb-3">
+                {{ form.connection_type.label(class="form-label") }}
+                {{ form.connection_type(class="form-select") }}
+                {% if form.connection_type.errors %}
+                    <div class="text-danger">
+                        {% for error in form.connection_type.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Is Primary -->
+            <div class="mb-3">
+                <div class="form-check">
+                    {{ form.is_primary(class="form-check-input") }}
+                    {{ form.is_primary.label(class="form-check-label") }}
+                </div>
+                <small class="form-text text-muted">Check if this is the primary IP for the device</small>
+            </div>
+            
+            <!-- VPS Fields (optional) -->
+            <div class="card mb-3" style="background: rgba(147, 51, 234, 0.05); border-color: rgba(147, 51, 234, 0.2);">
+                <div class="card-body">
+                    <h6 class="card-title" style="color: #a78bfa;">VPS-Specific Information (Optional)</h6>
+                    
+                    <div class="mb-3">
+                        {{ form.vps_hostname.label(class="form-label") }}
+                        {{ form.vps_hostname(class="form-control") }}
+                        {% if form.vps_hostname.errors %}
+                            <div class="text-danger">
+                                {% for error in form.vps_hostname.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.hypervisor_id.label(class="form-label") }}
+                        {{ form.hypervisor_id(class="form-control") }}
+                        {% if form.hypervisor_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.hypervisor_id.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MAC Address -->
+            <div class="mb-3">
+                {{ form.mac_address.label(class="form-label") }}
+                {{ form.mac_address(class="form-control") }}
+                {% if form.mac_address.errors %}
+                    <div class="text-danger">
+                        {% for error in form.mac_address.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Notes -->
+            <div class="mb-3">
+                {{ form.notes.label(class="form-label") }}
+                {{ form.notes(class="form-control") }}
+                {% if form.notes.errors %}
+                    <div class="text-danger">
+                        {% for error in form.notes.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Submit Buttons -->
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-success") }}
+                <button type="button" class="btn btn-primary" onclick="checkIP()">
+                    Check IP Availability
+                </button>
+                <a href="{{ url_for('ipam.index') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Alternative IPs -->
+{% if available_nearby %}
+<div class="alternative-ips">
+    <h6 style="color: #e4e6eb; margin-bottom: 10px;">Alternative Available IPs in Same Range:</h6>
+    <div>
+        {% for ip in available_nearby %}
+            <button class="alternative-ip-btn" onclick="selectIP('{{ ip.address }}')">
+                {{ ip.address }}
+            </button>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectIP(ipAddress) {
+    document.getElementById('ip_address').value = ipAddress;
+}
+
+function checkIP() {
+    const ip = document.getElementById('ip_address').value;
+    if (!ip) {
+        alert('Please enter an IP address first');
+        return;
+    }
+    
+    fetch(`{{ url_for('ipam.check_ip') }}?ip=${ip}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.available) {
+                alert(`✅ ${ip} is available for assignment!`);
+            } else {
+                alert(`❌ ${ip} is already assigned to ${data.assigned_to}\nStatus: ${data.status}`);
+            }
+        })
+        .catch(error => {
+            alert('Error checking IP: ' + error);
+        });
+}
+</script>
+{% endblock %}
