@@ -1,13 +1,15 @@
 <!--
 File: templates/pdus/index.html
 Purpose: Main PDU management view with filtering and actions
-Version: 1.0.2
+Version: 1.0.4
 Author: DCMS Team
 
 Revision History:
 - v1.0.0: Initial creation with PDU listing, filters, and management
 - v1.0.1: Added dropdown menu for Add PDU with rack selection
 - v1.0.2: Fixed filter dropdowns not working - added proper event handlers
+- v1.0.3: Fixed filter bar layout - added display:contents to form for proper flexbox layout
+- v1.0.4: Fixed dropdown text color visibility issue - options now properly visible
 -->
 
 {% extends "base.html" %}
@@ -97,6 +99,16 @@ Revision History:
         background: rgba(255, 255, 255, 0.1);
     }
     
+    /* FIX: Ensure dropdown options are visible */
+    .filter-select option {
+        background: #1a1f2e;
+        color: #e4e6eb;
+    }
+    
+    .filter-select option:hover {
+        background: #2a2f3e;
+    }
+    
     /* ========== ACTION BAR ========== */
     .action-bar {
         display: flex;
@@ -115,6 +127,7 @@ Revision History:
         background: rgba(255, 255, 255, 0.03);
         border-radius: 12px;
         overflow: hidden;
+        width: 100%;
     }
     
     .pdu-table th {
@@ -287,6 +300,7 @@ Revision History:
         opacity: 0.5;
     }
     
+    /* ========== RESPONSIVE ========== */
     @media (max-width: 768px) {
         .outlet-bar {
             width: 100px;
@@ -295,6 +309,14 @@ Revision History:
         .filter-bar {
             flex-direction: column;
             align-items: stretch;
+        }
+        
+        .filter-group {
+            width: 100%;
+        }
+        
+        .filter-select {
+            width: 100%;
         }
     }
 </style>
@@ -378,9 +400,10 @@ Revision History:
     </div>
 </div>
 
-<!-- ========== FILTER BAR ========== -->
+<!-- ========== FILTER BAR - FIXED LAYOUT AND COLORS ========== -->
 <div class="filter-bar">
-    <form method="GET" action="{{ url_for('pdus.index') }}" id="filterForm">
+    <!-- CRITICAL FIX: Added style="display: contents;" to fix filter layout -->
+    <form method="GET" action="{{ url_for('pdus.index') }}" id="filterForm" style="display: contents;">
         <div class="filter-group">
             <label class="filter-label">Data Center</label>
             <select name="datacenter" class="filter-select" id="datacenterFilter">
@@ -431,7 +454,7 @@ Revision History:
 <div class="card">
     <div class="card-body" style="padding: 0;">
         {% if pdus %}
-        <table class="pdu-table" style="width: 100%;">
+        <table class="pdu-table">
             <thead>
                 <tr>
                     <th>PDU ID</th>
@@ -467,10 +490,15 @@ Revision History:
                     <td>
                         <div class="outlet-bar">
                             {% set usage_percent = (pdu.used_outlets / pdu.total_outlets * 100) if pdu.total_outlets > 0 else 0 %}
-                            <div class="outlet-fill {% if usage_percent < 60 %}outlet-low{% elif usage_percent < 80 %}outlet-medium{% else %}outlet-high{% endif %}" 
-                                 style="width: {{ usage_percent }}%;">
+                            <div class="outlet-fill 
+                                {% if usage_percent < 50 %}outlet-low
+                                {% elif usage_percent < 80 %}outlet-medium
+                                {% else %}outlet-high{% endif %}"
+                                style="width: {{ usage_percent }}%;">
                             </div>
-                            <span class="outlet-text">{{ pdu.used_outlets }}/{{ pdu.total_outlets }}</span>
+                            <span class="outlet-text">
+                                {{ pdu.used_outlets }}/{{ pdu.total_outlets }}
+                            </span>
                         </div>
                     </td>
                     <td>
@@ -496,18 +524,14 @@ Revision History:
                     </td>
                     <td>
                         <div class="btn-group">
-                            <a href="{{ url_for('pdus.outlet_view', pdu_id=pdu.id) }}"
-                               class="btn btn-sm btn-secondary" title="View Outlets">
-                                🔌
+                            <a href="{{ url_for('pdus.outlet_view', pdu_id=pdu.id) }}" class="btn btn-sm btn-outline-primary">
+                                ⚡
                             </a>
-                            <a href="{{ url_for('pdus.edit_pdu', pdu_id=pdu.id) }}" 
-                               class="btn btn-sm btn-secondary">
+                            <a href="{{ url_for('pdus.edit_pdu', pdu_id=pdu.id) }}" class="btn btn-sm btn-outline-warning">
                                 Edit
                             </a>
                             {% if pdu.used_outlets == 0 %}
-                            <form method="POST" action="{{ url_for('pdus.delete_pdu', pdu_id=pdu.id) }}" 
-                                  style="display: inline;" 
-                                  onsubmit="return confirm('Delete PDU {{ pdu.identifier }}?');">
+                            <form method="POST" action="{{ url_for('pdus.delete_pdu', pdu_id=pdu.id) }}" style="display: inline;" onsubmit="return confirm('Delete PDU {{ pdu.identifier }}?');">
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </form>
                             {% endif %}
@@ -523,13 +547,13 @@ Revision History:
             <div class="empty-state-icon">⚡</div>
             <h3>No PDUs Found</h3>
             <p>
-                {% if current_filters.datacenter != 'all' or current_filters.rack != 'all' %}
+                {% if current_filters.datacenter != 'all' or current_filters.rack != 'all' or current_filters.voltage != 'all' or current_filters.capacity != 'all' %}
                     No PDUs match your current filters. Try adjusting them.
                 {% else %}
                     Start by adding PDUs to your racks.
                 {% endif %}
             </p>
-            {% if current_filters.datacenter != 'all' or current_filters.rack != 'all' %}
+            {% if current_filters.datacenter != 'all' or current_filters.rack != 'all' or current_filters.voltage != 'all' or current_filters.capacity != 'all' %}
                 <a href="{{ url_for('pdus.index') }}" class="btn btn-primary mt-3">
                     Clear Filters
                 </a>
@@ -557,7 +581,7 @@ function exportTable() {
     const headers = ['PDU ID', 'Rack', 'Circuit', 'Voltage', 'Phase', 'Capacity', 'Total Outlets', 'Used Outlets', 'IP Address'];
     csv.push(headers.join(','));
     
-    // Data
+    // Data rows
     const rows = table.querySelectorAll('tbody tr');
     rows.forEach(row => {
         const cells = row.querySelectorAll('td');
@@ -569,14 +593,14 @@ function exportTable() {
             cells[3].querySelector('.phase-badge').textContent.trim(), // Phase
             cells[3].querySelector('small').textContent.trim(), // Capacity
             // Extract outlet numbers from the bar
-            cells[4].querySelector('.outlet-text').textContent.split('/')[1], // Total outlets
-            cells[4].querySelector('.outlet-text').textContent.split('/')[0], // Used outlets
+            cells[4].querySelector('.outlet-text').textContent.split('/')[1].trim(), // Total outlets
+            cells[4].querySelector('.outlet-text').textContent.split('/')[0].trim(), // Used outlets
             cells[6].querySelector('a') ? cells[6].querySelector('a').textContent.trim() : 'Unmanaged' // IP
         ];
         csv.push(data.join(','));
     });
     
-    // Download
+    // Download CSV
     const csvContent = csv.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -584,14 +608,15 @@ function exportTable() {
     a.href = url;
     a.download = 'pdu_inventory.csv';
     a.click();
+    window.URL.revokeObjectURL(url);
 }
 
 // ========== FILTER FORM HANDLING ==========
-// Add event listeners to all filter dropdowns
 document.addEventListener('DOMContentLoaded', function() {
     const filterForm = document.getElementById('filterForm');
     const filterSelects = document.querySelectorAll('.filter-select');
     
+    // Auto-submit form when filter changes
     filterSelects.forEach(function(select) {
         select.addEventListener('change', function() {
             filterForm.submit();
@@ -599,33 +624,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// ========== QUICK RACK SELECTOR ==========
-function quickAddPDU() {
-    const racks = [
-        {% for rack in racks %}
-        {id: {{ rack.id }}, name: '{{ rack.rack_id }}', pdus: {{ rack.pdus.count() }}},
-        {% endfor %}
-    ];
+// ========== BOOTSTRAP DROPDOWN FALLBACK ==========
+// In case Bootstrap JS isn't loading properly
+document.addEventListener('DOMContentLoaded', function() {
+    const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
     
-    if (racks.length === 0) {
-        alert('No racks available! Please add a rack first.');
-        return;
-    }
-    
-    if (racks.length === 1) {
-        // If only one rack, go directly
-        window.location.href = "{{ url_for('pdus.add_pdu', rack_id=0) }}".replace('/0', '/' + racks[0].id);
-    } else {
-        // Show selection
-        let options = 'Select a Rack for the new PDU:\n\n';
-        racks.forEach((rack, index) => {
-            options += `${index + 1}. ${rack.name} (${rack.pdus} PDUs)\n`;
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const dropdown = this.closest('.dropdown');
+            const menu = dropdown.querySelector('.dropdown-menu');
+            
+            // Toggle dropdown
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+            } else {
+                // Close all other dropdowns first
+                document.querySelectorAll('.dropdown-menu').forEach(m => {
+                    m.style.display = 'none';
+                });
+                menu.style.display = 'block';
+            }
         });
-        const choice = prompt(options + '\nEnter number:');
-        if (choice && racks[choice - 1]) {
-            window.location.href = "{{ url_for('pdus.add_pdu', rack_id=0) }}".replace('/0', '/' + racks[choice - 1].id);
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                menu.style.display = 'none';
+            });
         }
-    }
-}
+    });
+});
 </script>
 {% endblock %}
