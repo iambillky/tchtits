@@ -1,0 +1,625 @@
+<!--
+File: templates/network_devices/edit_device.html
+Purpose: Form template for editing existing network devices
+Version: 1.0.0
+Author: iambilky
+
+Revision History:
+- v1.0.0: Initial creation based on add template with edit functionality
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Edit Network Device{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== DEVICE INFO BAR ========== */
+    .device-info-bar {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.05));
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .device-info-content {
+        flex: 1;
+    }
+    
+    .device-current-id {
+        color: #60a5fa;
+        font-size: 2rem;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        margin-bottom: 5px;
+    }
+    
+    .device-current-hostname {
+        color: #e4e6eb;
+        font-size: 1.1rem;
+    }
+    
+    .device-stats {
+        text-align: right;
+    }
+    
+    .device-stat-item {
+        color: #8b92a5;
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    
+    .device-stat-value {
+        color: #60a5fa;
+        font-weight: 600;
+    }
+    
+    /* ========== FORM CONTAINER ========== */
+    .form-container {
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    
+    .form-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 30px;
+    }
+    
+    /* ========== FORM SECTIONS ========== */
+    .form-section {
+        margin-bottom: 35px;
+    }
+    
+    .form-section-title {
+        color: #60a5fa;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* ========== FORM GROUPS ========== */
+    .form-group {
+        margin-bottom: 25px;
+    }
+    
+    .form-label {
+        display: block;
+        color: #e4e6eb;
+        font-weight: 500;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .form-label .required {
+        color: #ef4444;
+        margin-left: 3px;
+    }
+    
+    /* ========== FORM CONTROLS ========== */
+    .form-control {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #fff;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.1);
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+    }
+    
+    .form-control::placeholder {
+        color: #6b7280;
+    }
+    
+    select.form-control {
+        cursor: pointer;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
+    }
+    
+    /* ========== VALIDATION ========== */
+    .invalid-feedback {
+        display: block;
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 5px;
+    }
+    
+    .form-control.is-invalid {
+        border-color: #ef4444;
+    }
+    
+    /* ========== HELP TEXT ========== */
+    .form-text {
+        display: block;
+        color: #8b92a5;
+        font-size: 0.875rem;
+        margin-top: 5px;
+    }
+    
+    /* ========== NETWORK TYPE HINT ========== */
+    .network-hint {
+        background: rgba(96, 165, 250, 0.1);
+        border: 1px solid rgba(96, 165, 250, 0.2);
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    .network-hint.show {
+        display: block;
+    }
+    
+    .network-hint.private {
+        background: rgba(167, 139, 250, 0.1);
+        border-color: rgba(167, 139, 250, 0.2);
+        color: #a78bfa;
+    }
+    
+    .network-hint.public {
+        background: rgba(52, 211, 153, 0.1);
+        border-color: rgba(52, 211, 153, 0.2);
+        color: #34d399;
+    }
+    
+    /* ========== RESPONSIVE GRID ========== */
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+    
+    .form-row-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+    
+    /* ========== BUTTON GROUP ========== */
+    .button-group {
+        display: flex;
+        gap: 15px;
+        margin-top: 35px;
+        padding-top: 25px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #10b981, #059669);
+        border: none;
+        color: white;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .btn-success:hover {
+        background: linear-gradient(135deg, #059669, #047857);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    
+    .btn-cancel {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #e4e6eb;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    
+    .btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        text-decoration: none;
+    }
+    
+    .btn-danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border: none;
+        color: white;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        margin-left: auto;
+    }
+    
+    .btn-danger:hover {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+    
+    @media (max-width: 768px) {
+        .form-row, .form-row-3 {
+            grid-template-columns: 1fr;
+        }
+        
+        .device-info-bar {
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .device-stats {
+            text-align: center;
+            margin-top: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Edit Network Device</h1>
+    <p class="page-subtitle">Modify network device configuration</p>
+</div>
+
+<!-- ========== DEVICE INFO BAR ========== -->
+<div class="device-info-bar">
+    <div class="device-info-content">
+        <div class="device-current-id">{{ device.identifier }}</div>
+        <div class="device-current-hostname">{{ device.hostname }}</div>
+    </div>
+    <div class="device-stats">
+        <div class="device-stat-item">
+            Type: <span class="device-stat-value">{{ device.device_type }}</span>
+        </div>
+        <div class="device-stat-item">
+            Network: <span class="device-stat-value">{{ device.network_type|upper }}</span>
+        </div>
+        <div class="device-stat-item">
+            Location: <span class="device-stat-value">{{ device.rack.rack_id }} / {{ device.rack_position }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="form-container">
+    <div class="form-card">
+        <form method="POST" action="{{ url_for('network_devices.edit_device', device_id=device.id) }}" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <!-- ========== IDENTIFICATION ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Device Identification</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.identifier.id }}" class="form-label">
+                            Identifier <span class="required">*</span>
+                        </label>
+                        {{ form.identifier(class="form-control" + (" is-invalid" if form.identifier.errors else "")) }}
+                        <small class="form-text">What you call it (INT5, DISTRO5, CORE, etc.)</small>
+                        {% if form.identifier.errors %}
+                            {% for error in form.identifier.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.hostname.id }}" class="form-label">
+                            Hostname <span class="required">*</span>
+                        </label>
+                        {{ form.hostname(class="form-control" + (" is-invalid" if form.hostname.errors else "")) }}
+                        <small class="form-text">Full hostname (TCH-SFJ-INT5)</small>
+                        {% if form.hostname.errors %}
+                            {% for error in form.hostname.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label for="{{ form.device_type.id }}" class="form-label">
+                            Device Type <span class="required">*</span>
+                        </label>
+                        {{ form.device_type(class="form-control" + (" is-invalid" if form.device_type.errors else "")) }}
+                        {% if form.device_type.errors %}
+                            {% for error in form.device_type.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.device_role.id }}" class="form-label">
+                            Device Role
+                        </label>
+                        {{ form.device_role(class="form-control") }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.network_type.id }}" class="form-label">
+                            Network Type <span class="required">*</span>
+                        </label>
+                        {{ form.network_type(class="form-control" + (" is-invalid" if form.network_type.errors else "")) }}
+                        <div id="networkHint" class="network-hint">
+                            <span id="networkHintText"></span>
+                        </div>
+                        {% if form.network_type.errors %}
+                            {% for error in form.network_type.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ========== HARDWARE INFORMATION ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Hardware Information</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.manufacturer.id }}" class="form-label">
+                            Manufacturer
+                        </label>
+                        {{ form.manufacturer(class="form-control") }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.model.id }}" class="form-label">
+                            Model
+                        </label>
+                        {{ form.model(class="form-control") }}
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.serial_number.id }}" class="form-label">
+                            Serial Number
+                        </label>
+                        {{ form.serial_number(class="form-control") }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.software_version.id }}" class="form-label">
+                            Software Version
+                        </label>
+                        {{ form.software_version(class="form-control") }}
+                        <small class="form-text">IOS version, firmware, etc.</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ========== PHYSICAL LOCATION ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Physical Location</h3>
+                
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label for="{{ form.rack_id.id }}" class="form-label">
+                            Rack Location <span class="required">*</span>
+                        </label>
+                        {{ form.rack_id(class="form-control" + (" is-invalid" if form.rack_id.errors else "")) }}
+                        {% if form.rack_id.errors %}
+                            {% for error in form.rack_id.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.start_u.id }}" class="form-label">
+                            Starting U Position <span class="required">*</span>
+                        </label>
+                        {{ form.start_u(class="form-control" + (" is-invalid" if form.start_u.errors else "")) }}
+                        <small class="form-text">Top of rack = 42 (typically)</small>
+                        {% if form.start_u.errors %}
+                            {% for error in form.start_u.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.size_u.id }}" class="form-label">
+                            Size (in U) <span class="required">*</span>
+                        </label>
+                        {{ form.size_u(class="form-control" + (" is-invalid" if form.size_u.errors else "")) }}
+                        {% if form.size_u.errors %}
+                            {% for error in form.size_u.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ========== NETWORK CONFIGURATION ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Network Configuration</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.management_ip.id }}" class="form-label">
+                            Management IP
+                        </label>
+                        {{ form.management_ip(class="form-control" + (" is-invalid" if form.management_ip.errors else "")) }}
+                        <small class="form-text">Device management IP address</small>
+                        {% if form.management_ip.errors %}
+                            {% for error in form.management_ip.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.port_count.id }}" class="form-label">
+                            Port Count
+                        </label>
+                        {{ form.port_count(class="form-control") }}
+                        <small class="form-text">Total number of ports</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ========== POWER CONFIGURATION ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Power Configuration</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.pdu_1_id.id }}" class="form-label">
+                            Primary PDU
+                        </label>
+                        {{ form.pdu_1_id(class="form-control") }}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.pdu_1_outlet.id }}" class="form-label">
+                            Primary PDU Outlet
+                        </label>
+                        {{ form.pdu_1_outlet(class="form-control") }}
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.pdu_2_id.id }}" class="form-label">
+                            Redundant PDU
+                        </label>
+                        {{ form.pdu_2_id(class="form-control") }}
+                        <small class="form-text">Optional - for redundant power</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.pdu_2_outlet.id }}" class="form-label">
+                            Redundant PDU Outlet
+                        </label>
+                        {{ form.pdu_2_outlet(class="form-control") }}
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.power_consumption.id }}" class="form-label">
+                        Power Consumption (Watts)
+                    </label>
+                    {{ form.power_consumption(class="form-control", style="max-width: 200px;") }}
+                </div>
+            </div>
+            
+            <!-- ========== STATUS & NOTES ========== -->
+            <div class="form-section">
+                <h3 class="form-section-title">Status & Notes</h3>
+                
+                <div class="form-group">
+                    <label for="{{ form.status.id }}" class="form-label">
+                        Status <span class="required">*</span>
+                    </label>
+                    {{ form.status(class="form-control", style="max-width: 300px;") }}
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.notes.id }}" class="form-label">
+                        Notes
+                    </label>
+                    {{ form.notes(class="form-control") }}
+                </div>
+            </div>
+            
+            <!-- ========== ACTION BUTTONS ========== -->
+            <div class="button-group">
+                <button type="submit" class="btn btn-success">
+                    <span style="margin-right: 8px;">💾</span> Save Changes
+                </button>
+                <a href="{{ url_for('network_devices.index') }}" class="btn btn-cancel">
+                    <span style="margin-right: 8px;">✕</span> Cancel
+                </a>
+                
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <span style="margin-right: 8px;">🗑️</span> Delete Device
+                </button>
+            </div>
+        </form>
+        
+        <!-- Hidden delete form -->
+        <form id="deleteForm" method="POST" action="{{ url_for('network_devices.delete_device', device_id=device.id) }}" style="display: none;">
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ========== AUTO-UPPERCASE FIELDS ==========
+document.getElementById('{{ form.identifier.id }}').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+
+document.getElementById('{{ form.hostname.id }}').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+
+// ========== NETWORK TYPE HINT ==========
+function updateNetworkTypeHint() {
+    const networkType = document.getElementById('{{ form.network_type.id }}').value;
+    const hint = document.getElementById('networkHint');
+    const hintText = document.getElementById('networkHintText');
+    
+    if (networkType === 'private') {
+        hint.className = 'network-hint show private';
+        hintText.textContent = '💡 Private network devices use INT prefix (INT5, INT1051) or PRIVCORE';
+    } else if (networkType === 'public') {
+        hint.className = 'network-hint show public';
+        hintText.textContent = '💡 Public network devices use DISTRO or CORE prefix';
+    } else {
+        hint.className = 'network-hint';
+    }
+}
+
+// Initialize on page load
+updateNetworkTypeHint();
+
+// ========== DELETE CONFIRMATION ==========
+function confirmDelete() {
+    if (confirm('Are you sure you want to delete network device {{ device.identifier }}? This action cannot be undone.')) {
+        document.getElementById('deleteForm').submit();
+    }
+}
+
+// ========== FORM VALIDATION FEEDBACK ==========
+document.querySelectorAll('.form-control').forEach(function(input) {
+    input.addEventListener('input', function() {
+        if (this.classList.contains('is-invalid')) {
+            this.classList.remove('is-invalid');
+            const feedback = this.parentElement.querySelectorAll('.invalid-feedback');
+            feedback.forEach(function(msg) {
+                msg.style.display = 'none';
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

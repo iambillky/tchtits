@@ -240,10 +240,6 @@ Revision History:
             </ul>
         </div>
         
-        <a href="{{ url_for('datacenters.list_datacenters') }}" class="btn btn-secondary">
-            <span style="margin-right: 5px;">⚙️</span> Manage DCs
-        </a>
-        
         {% if rack_data %}
         <button class="btn btn-secondary" onclick="exportTable()">
             <span style="margin-right: 5px;">📊</span> Export CSV

@@ -1,14 +1,13 @@
 """
 File: app.py
 Purpose: Main Flask application entry point for DCMS
-Version: 1.1.0
+Created: 2024-09-13
 Author: DCMS Team
 
 Revision History:
-- v1.0.0: Initial Flask app setup with dark theme
-- v1.0.1: Added SQLAlchemy database initialization
-- v1.0.2: Integrated data center blueprint
-- v1.1.0: Added network devices blueprint
+- 2024-09-13: Initial Flask app setup with dark theme
+- 2024-09-13: Added SQLAlchemy database initialization
+- 2024-09-13: Integrated data center blueprint
 """
 
 from flask import Flask, render_template, jsonify
@@ -39,17 +38,10 @@ db.init_app(app)
 
 # Register blueprints
 from routes.datacenters import datacenters_bp
-from routes.network_devices import network_devices_bp
-
 app.register_blueprint(datacenters_bp)
-app.register_blueprint(network_devices_bp)
 
 # Create tables
 with app.app_context():
-    # Import all models to ensure they're registered with SQLAlchemy
-    from models.datacenter import DataCenter, Floor, Rack, PDU
-    from models.network_device import NetworkDevice
-    
     db.create_all()
 
 # ========== ROUTE HANDLERS ==========
@@ -59,11 +51,9 @@ def index():
     """Home page - Dashboard"""
     # Get summary data for dashboard
     from models.datacenter import DataCenter, Rack
-    from models.network_device import NetworkDevice
     
     dc_count = DataCenter.query.count()
     rack_count = Rack.query.count()
-    network_device_count = NetworkDevice.query.count()
     
     # Calculate total IPs (placeholder for now)
     ip_count = 0
@@ -74,7 +64,6 @@ def index():
                          current_year=datetime.now().year,
                          dc_count=dc_count,
                          rack_count=rack_count,
-                         network_device_count=network_device_count,
                          ip_count=ip_count)
 
 @app.route('/health')
@@ -91,7 +80,7 @@ def about():
     """About page with system information"""
     return render_template('about.html',
                          title='About DCMS',
-                         version='1.1.0',
+                         version='1.0.0',
                          current_date=datetime.now().strftime('%B %d, %Y'),
                          current_year=datetime.now().year)
 
@@ -117,4 +106,4 @@ def internal_error(error):
 if __name__ == '__main__':
     # Run the development server
     # Note: On Windows, you might need to set host='127.0.0.1'
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

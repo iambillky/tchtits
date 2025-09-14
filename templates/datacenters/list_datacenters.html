@@ -1,0 +1,489 @@
+<!--
+File: templates/datacenters/list_datacenters.html
+Purpose: List view for managing data centers and floors
+Version: 1.0.0
+Author: iambilky
+
+Revision History:
+- v1.0.0: Initial creation with DC/floor management interface
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Manage Data Centers{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== HEADER SECTION ========== */
+    .management-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .btn-back {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #e4e6eb;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        text-decoration: none;
+    }
+    
+    /* ========== DC CARDS ========== */
+    .dc-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+        gap: 25px;
+        margin-bottom: 30px;
+    }
+    
+    .dc-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.2s ease;
+    }
+    
+    .dc-card:hover {
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(96, 165, 250, 0.3);
+    }
+    
+    .dc-header {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.05));
+        padding: 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .dc-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+    
+    .dc-code {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #60a5fa;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .dc-name {
+        color: #e4e6eb;
+        font-size: 1.1rem;
+        margin-bottom: 15px;
+    }
+    
+    .dc-actions {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .btn-icon {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #e4e6eb;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+    
+    .btn-icon:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+    
+    .btn-icon.edit {
+        border-color: rgba(96, 165, 250, 0.3);
+    }
+    
+    .btn-icon.edit:hover {
+        background: rgba(96, 165, 250, 0.2);
+        color: #60a5fa;
+    }
+    
+    .btn-icon.delete {
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    
+    .btn-icon.delete:hover {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+    }
+    
+    /* ========== DC STATS ========== */
+    .dc-stats {
+        padding: 15px 20px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        background: rgba(0, 0, 0, 0.2);
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    .stat-label {
+        color: #8b92a5;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 5px;
+    }
+    
+    .stat-value {
+        color: #e4e6eb;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    .stat-value.highlight {
+        color: #60a5fa;
+    }
+    
+    /* ========== DC INFO ========== */
+    .dc-info {
+        padding: 15px 20px;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .info-label {
+        color: #8b92a5;
+        font-size: 0.9rem;
+    }
+    
+    .info-value {
+        color: #e4e6eb;
+        font-size: 0.9rem;
+    }
+    
+    /* ========== FLOORS SECTION ========== */
+    .floors-section {
+        padding: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .floors-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .floors-title {
+        color: #60a5fa;
+        font-weight: 600;
+        font-size: 1rem;
+    }
+    
+    .floor-item {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+    
+    .floor-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+    
+    .floor-info {
+        flex: 1;
+    }
+    
+    .floor-designation {
+        color: #e4e6eb;
+        font-weight: 600;
+        margin-right: 10px;
+    }
+    
+    .floor-actual {
+        color: #8b92a5;
+        font-size: 0.9rem;
+    }
+    
+    .floor-stats {
+        color: #8b92a5;
+        font-size: 0.85rem;
+        margin-top: 5px;
+    }
+    
+    .floor-actions {
+        display: flex;
+        gap: 8px;
+    }
+    
+    /* ========== EMPTY STATE ========== */
+    .no-floors {
+        text-align: center;
+        padding: 40px;
+        color: #8b92a5;
+        font-style: italic;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #8b92a5;
+    }
+    
+    .empty-state-icon {
+        font-size: 3rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+    
+    /* ========== UTILIZATION BAR ========== */
+    .utilization-mini {
+        margin-top: 10px;
+    }
+    
+    .utilization-bar-mini {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .utilization-fill-mini {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    
+    .utilization-low { background: #10b981; }
+    .utilization-medium { background: #f59e0b; }
+    .utilization-high { background: #ef4444; }
+    
+    @media (max-width: 768px) {
+        .dc-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .dc-stats {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Data Center Management</h1>
+    <p class="page-subtitle">Manage your data centers, floors, and infrastructure</p>
+</div>
+
+<!-- ========== HEADER WITH ACTIONS ========== -->
+<div class="management-header">
+    <a href="{{ url_for('datacenters.index') }}" class="btn-back">
+        <span>←</span> Back to Rack View
+    </a>
+    
+    <a href="{{ url_for('datacenters.add_datacenter') }}" class="btn btn-primary">
+        <span style="margin-right: 8px;">➕</span> Add Data Center
+    </a>
+</div>
+
+<!-- ========== DATA CENTER CARDS ========== -->
+{% if dc_stats %}
+<div class="dc-grid">
+    {% for stat in dc_stats %}
+    <div class="dc-card">
+        <!-- DC Header -->
+        <div class="dc-header">
+            <div class="dc-title">
+                <div>
+                    <div class="dc-code">{{ stat.dc.code }}</div>
+                    <div class="dc-name">{{ stat.dc.name }}</div>
+                </div>
+                <div class="dc-actions">
+                    <a href="{{ url_for('datacenters.edit_datacenter', dc_id=stat.dc.id) }}" 
+                       class="btn-icon edit" title="Edit Data Center">
+                        ✏️
+                    </a>
+                    {% if stat.floor_count == 0 %}
+                    <form method="POST" action="{{ url_for('datacenters.delete_datacenter', dc_id=stat.dc.id) }}" 
+                          style="display: inline;" 
+                          onsubmit="return confirm('Delete data center {{ stat.dc.code }}?');">
+                        <button type="submit" class="btn-icon delete" title="Delete Data Center">
+                            🗑️
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Utilization Bar -->
+            {% if stat.total_u > 0 %}
+            <div class="utilization-mini">
+                <div class="utilization-bar-mini">
+                    <div class="utilization-fill-mini {% if stat.utilization < 60 %}utilization-low{% elif stat.utilization < 80 %}utilization-medium{% else %}utilization-high{% endif %}" 
+                         style="width: {{ stat.utilization }}%;">
+                    </div>
+                </div>
+                <div style="color: #8b92a5; font-size: 0.8rem; margin-top: 5px;">
+                    {{ stat.utilization }}% utilized ({{ stat.used_u }}/{{ stat.total_u }}U)
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- DC Stats -->
+        <div class="dc-stats">
+            <div class="stat-item">
+                <div class="stat-label">Floors</div>
+                <div class="stat-value highlight">{{ stat.floor_count }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Racks</div>
+                <div class="stat-value">{{ stat.rack_count }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Total U</div>
+                <div class="stat-value">{{ stat.total_u }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Used U</div>
+                <div class="stat-value">{{ stat.used_u }}</div>
+            </div>
+        </div>
+        
+        <!-- DC Info -->
+        {% if stat.dc.address or stat.dc.contact_phone or stat.dc.contact_email %}
+        <div class="dc-info">
+            {% if stat.dc.address %}
+            <div class="info-row">
+                <span class="info-label">Address:</span>
+                <span class="info-value">{{ stat.dc.address[:50] }}{% if stat.dc.address|length > 50 %}...{% endif %}</span>
+            </div>
+            {% endif %}
+            {% if stat.dc.contact_phone %}
+            <div class="info-row">
+                <span class="info-label">Phone:</span>
+                <span class="info-value">{{ stat.dc.contact_phone }}</span>
+            </div>
+            {% endif %}
+            {% if stat.dc.contact_email %}
+            <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value">{{ stat.dc.contact_email }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Floors Section -->
+        <div class="floors-section">
+            <div class="floors-header">
+                <div class="floors-title">Floors</div>
+                <a href="{{ url_for('datacenters.add_floor', dc_id=stat.dc.id) }}" 
+                   class="btn btn-sm btn-primary">
+                    Add Floor
+                </a>
+            </div>
+            
+            {% if stat.dc.floors.count() > 0 %}
+                {% for floor in stat.dc.floors %}
+                <div class="floor-item">
+                    <div class="floor-info">
+                        <div>
+                            <span class="floor-designation">{{ floor.provider_designation }}</span>
+                            <span class="floor-actual">({{ floor.actual_floor }})</span>
+                        </div>
+                        <div class="floor-stats">
+                            {{ floor.racks.count() }} racks
+                            {% if floor.description %}
+                            • {{ floor.description }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="floor-actions">
+                        <a href="{{ url_for('datacenters.edit_floor', floor_id=floor.id) }}" 
+                           class="btn-icon edit" title="Edit Floor">
+                            ✏️
+                        </a>
+                        {% if floor.racks.count() == 0 %}
+                        <form method="POST" action="{{ url_for('datacenters.delete_floor', floor_id=floor.id) }}" 
+                              style="display: inline;" 
+                              onsubmit="return confirm('Delete floor {{ floor.provider_designation }}?');">
+                            <button type="submit" class="btn-icon delete" title="Delete Floor">
+                                🗑️
+                            </button>
+                        </form>
+                        {% endif %}
+                        <a href="{{ url_for('datacenters.add_rack', floor_id=floor.id) }}" 
+                           class="btn btn-sm btn-secondary">
+                            Add Rack
+                        </a>
+                        <a href="{{ url_for('datacenters.bulk_add_racks', floor_id=floor.id) }}" 
+                           class="btn btn-sm btn-secondary">
+                            Bulk Add
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-floors">
+                    No floors configured yet
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<!-- ========== EMPTY STATE ========== -->
+<div class="empty-state">
+    <div class="empty-state-icon">🏢</div>
+    <h3>No Data Centers Configured</h3>
+    <p>Start by adding your first data center</p>
+    <a href="{{ url_for('datacenters.add_datacenter') }}" class="btn btn-primary mt-3">
+        <span style="margin-right: 5px;">➕</span> Add Data Center
+    </a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Any additional JavaScript if needed
+</script>
+{% endblock %}

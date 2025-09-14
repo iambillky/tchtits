@@ -1,7 +1,7 @@
 """
 File: routes/datacenters.py
 Purpose: Route handlers for data center management
-Version: 1.4.0
+Version: 1.2.0
 Author: iambilky
 
 Revision History:
@@ -10,8 +10,6 @@ Revision History:
 - v1.0.2: Added API endpoint for dashboard summary
 - v1.1.0: Added rack_code field handling in add/edit rack operations
 - v1.2.0: Fixed index view to pass datacenters object for proper empty state handling
-- v1.3.0: Added API endpoint to check for duplicate rack IDs
-- v1.4.0: Added edit and delete operations for data centers and floors
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
@@ -69,36 +67,6 @@ def index():
                          total_capacity=total_capacity,
                          overall_utilization=overall_utilization,
                          datacenters=datacenters)  # Pass datacenters for the template
-
-
-@datacenters_bp.route('/list')
-def list_datacenters():
-    """
-    List view of all data centers with management options
-    Shows a focused view of just data centers and floors
-    """
-    datacenters = DataCenter.query.all()
-    
-    # Build summary stats for each DC
-    dc_stats = []
-    for dc in datacenters:
-        floor_count = dc.floors.count()
-        rack_count = dc.rack_count
-        total_u = dc.total_u_capacity
-        
-        # Calculate used U (will be calculated from equipment later)
-        used_u = sum(rack.u_used for floor in dc.floors for rack in floor.racks)
-        
-        dc_stats.append({
-            'dc': dc,
-            'floor_count': floor_count,
-            'rack_count': rack_count,
-            'total_u': total_u,
-            'used_u': used_u,
-            'utilization': round((used_u / total_u * 100), 1) if total_u > 0 else 0
-        })
-    
-    return render_template('datacenters/list_datacenters.html', dc_stats=dc_stats)
 
 # ========== CREATE OPERATIONS ==========
 
@@ -230,58 +198,6 @@ def bulk_add_racks(floor_id):
 
 # ========== UPDATE OPERATIONS ==========
 
-@datacenters_bp.route('/edit-dc/<int:dc_id>', methods=['GET', 'POST'])
-def edit_datacenter(dc_id):
-    """
-    Edit data center details
-    Cannot change DC code if floors/racks exist (would break rack IDs)
-    """
-    dc = DataCenter.query.get_or_404(dc_id)
-    form = DataCenterForm(obj=dc)
-    
-    # Check if DC has floors/racks
-    has_infrastructure = dc.floors.count() > 0
-    
-    if form.validate_on_submit():
-        # Check if trying to change code when infrastructure exists
-        if has_infrastructure and form.code.data.upper() != dc.code:
-            flash('Cannot change DC code when floors/racks exist!', 'error')
-            return render_template('datacenters/edit_dc.html', form=form, dc=dc, has_infrastructure=has_infrastructure)
-        
-        # Update DC information
-        dc.code = form.code.data.upper()
-        dc.name = form.name.data
-        dc.address = form.address.data
-        dc.contact_phone = form.contact_phone.data
-        dc.contact_email = form.contact_email.data
-        dc.notes = form.notes.data
-        
-        db.session.commit()
-        flash(f'Data Center {dc.code} updated successfully!', 'success')
-        return redirect(url_for('datacenters.list_datacenters'))
-    
-    return render_template('datacenters/edit_dc.html', form=form, dc=dc, has_infrastructure=has_infrastructure)
-
-
-@datacenters_bp.route('/edit-floor/<int:floor_id>', methods=['GET', 'POST'])
-def edit_floor(floor_id):
-    """Edit floor details"""
-    floor = Floor.query.get_or_404(floor_id)
-    form = FloorForm(obj=floor)
-    
-    if form.validate_on_submit():
-        # Update floor information
-        floor.provider_designation = form.provider_designation.data
-        floor.actual_floor = form.actual_floor.data
-        floor.description = form.description.data
-        
-        db.session.commit()
-        flash(f'Floor {floor.provider_designation} updated!', 'success')
-        return redirect(url_for('datacenters.list_datacenters'))
-    
-    return render_template('datacenters/edit_floor.html', form=form, floor=floor)
-
-
 @datacenters_bp.route('/edit-rack/<int:rack_id>', methods=['GET', 'POST'])
 def edit_rack(rack_id):
     """
@@ -305,44 +221,6 @@ def edit_rack(rack_id):
 
 # ========== DELETE OPERATIONS ==========
 
-@datacenters_bp.route('/delete-dc/<int:dc_id>', methods=['POST'])
-def delete_datacenter(dc_id):
-    """
-    Delete a data center (only if empty)
-    Prevents deletion if DC contains floors/racks
-    """
-    dc = DataCenter.query.get_or_404(dc_id)
-    
-    # Check if DC has floors
-    if dc.floors.count() > 0:
-        flash(f'Cannot delete {dc.code} - it has floors/racks!', 'error')
-    else:
-        db.session.delete(dc)
-        db.session.commit()
-        flash(f'Data Center {dc.code} deleted!', 'success')
-    
-    return redirect(url_for('datacenters.list_datacenters'))
-
-
-@datacenters_bp.route('/delete-floor/<int:floor_id>', methods=['POST'])
-def delete_floor(floor_id):
-    """
-    Delete a floor (only if empty)
-    Prevents deletion if floor contains racks
-    """
-    floor = Floor.query.get_or_404(floor_id)
-    
-    # Check if floor has racks
-    if floor.racks.count() > 0:
-        flash(f'Cannot delete floor {floor.provider_designation} - it has racks!', 'error')
-    else:
-        db.session.delete(floor)
-        db.session.commit()
-        flash(f'Floor {floor.provider_designation} deleted!', 'success')
-    
-    return redirect(url_for('datacenters.list_datacenters'))
-
-
 @datacenters_bp.route('/delete-rack/<int:rack_id>', methods=['POST'])
 def delete_rack(rack_id):
     """
@@ -362,15 +240,6 @@ def delete_rack(rack_id):
     return redirect(url_for('datacenters.index'))
 
 # ========== API ENDPOINTS ==========
-
-@datacenters_bp.route('/api/check-rack/<rack_id>')
-def check_rack_exists(rack_id):
-    """
-    API endpoint to check if a rack ID already exists
-    Returns JSON with exists: true/false
-    """
-    existing = Rack.query.filter_by(rack_id=rack_id).first()
-    return jsonify({'exists': existing is not None})
 
 @datacenters_bp.route('/api/dc-summary')
 def api_dc_summary():
