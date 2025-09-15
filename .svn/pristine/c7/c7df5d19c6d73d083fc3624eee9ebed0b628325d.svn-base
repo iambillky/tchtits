@@ -1,0 +1,178 @@
+<!--
+File: templates/ipam/add_vlan.html  
+Purpose: Form to add new VLANs to IPAM
+Created: 2025-01-14
+Author: DCMS Team
+
+Revision History:
+- v1.0.0: Initial creation with VLAN addition form
+          Supports VLAN number, name, VRF, and special flags
+- v1.0.1: Added colocation client ID and name fields for tracking colo customers
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Add VLAN - IPAM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Add VLAN</h1>
+    <p class="page-subtitle">Define a new VLAN for IP range mapping</p>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('ipam.add_vlan') }}">
+            {{ form.hidden_tag() }}
+            
+            <!-- VLAN Number -->
+            <div class="mb-3">
+                {{ form.vlan_number.label(class="form-label") }}
+                {{ form.vlan_number(class="form-control") }}
+                {% if form.vlan_number.errors %}
+                    <div class="text-danger">
+                        {% for error in form.vlan_number.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">VLAN ID (1-4094)</small>
+            </div>
+            
+            <!-- VLAN Name -->
+            <div class="mb-3">
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control") }}
+                {% if form.name.errors %}
+                    <div class="text-danger">
+                        {% for error in form.name.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">Will default to "VlanXXX" if not specified</small>
+            </div>
+            
+            <!-- Description -->
+            <div class="mb-3">
+                {{ form.description.label(class="form-label") }}
+                {{ form.description(class="form-control") }}
+                {% if form.description.errors %}
+                    <div class="text-danger">
+                        {% for error in form.description.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- VRF -->
+            <div class="mb-3">
+                {{ form.vrf.label(class="form-label") }}
+                {{ form.vrf(class="form-control") }}
+                {% if form.vrf.errors %}
+                    <div class="text-danger">
+                        {% for error in form.vrf.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="form-text text-muted">VRF name if applicable (e.g., "private")</small>
+            </div>
+            
+            <!-- Special Flags -->
+            <div class="mb-3">
+                <label class="form-label">VLAN Type</label>
+                <div class="form-check">
+                    {{ form.is_private(class="form-check-input") }}
+                    {{ form.is_private.label(class="form-check-label") }}
+                    <small class="form-text text-muted d-block">For 10.x.x.x internal networks</small>
+                </div>
+                <div class="form-check">
+                    {{ form.is_colo(class="form-check-input", onchange="toggleColoFields()") }}
+                    {{ form.is_colo.label(class="form-check-label") }}
+                    <small class="form-text text-muted d-block">Customer colocation VLAN (201-217)</small>
+                </div>
+                <div class="form-check">
+                    {{ form.is_vps(class="form-check-input") }}
+                    {{ form.is_vps.label(class="form-check-label") }}
+                    <small class="form-text text-muted d-block">VPS pool VLAN (contains VPS IPs)</small>
+                </div>
+            </div>
+            
+            <!-- Colocation Client Fields (shown when is_colo is checked) -->
+            <div id="coloClientFields" style="display: none;">
+                <h5 class="mb-3" style="color: #60a5fa;">Colocation Client Information</h5>
+                
+                <div class="mb-3">
+                    {{ form.colo_client_id.label(class="form-label") }}
+                    {{ form.colo_client_id(class="form-control") }}
+                    {% if form.colo_client_id.errors %}
+                        <div class="text-danger">
+                            {% for error in form.colo_client_id.errors %}
+                                <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <small class="form-text text-muted">Internal client ID for tracking</small>
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.colo_client_name.label(class="form-label") }}
+                    {{ form.colo_client_name(class="form-control") }}
+                    {% if form.colo_client_name.errors %}
+                        <div class="text-danger">
+                            {% for error in form.colo_client_name.errors %}
+                                <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <small class="form-text text-muted">Client company name for quick reference</small>
+                </div>
+            </div>
+            
+            <!-- Submit Buttons -->
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('ipam.vlans') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">VLAN Ranges at TCH</h5>
+        <ul class="mb-0">
+            <li><strong>2-99:</strong> Public server VLANs</li>
+            <li><strong>111:</strong> Special public VLAN (multiple IP ranges)</li>
+            <li><strong>201-217:</strong> Colocation customer VLANs</li>
+            <li><strong>Private:</strong> Uses VRF for 10.x.x.x networks</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+function toggleColoFields() {
+    const isColoCheckbox = document.getElementById('is_colo');
+    const coloFields = document.getElementById('coloClientFields');
+    
+    if (isColoCheckbox.checked) {
+        coloFields.style.display = 'block';
+    } else {
+        coloFields.style.display = 'none';
+        // Clear the fields when unchecked
+        document.getElementById('colo_client_id').value = '';
+        document.getElementById('colo_client_name').value = '';
+    }
+}
+
+// Check on page load in case of form validation errors
+document.addEventListener('DOMContentLoaded', function() {
+    const isColoCheckbox = document.getElementById('is_colo');
+    if (isColoCheckbox && isColoCheckbox.checked) {
+        toggleColoFields();
+    }
+});
+</script>
+{% endblock %}

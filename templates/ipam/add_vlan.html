@@ -1,122 +1,115 @@
-<!--
-File: templates/ipam/add_vlan.html  
-Purpose: Form to add new VLANs to IPAM
-Created: 2025-01-14
-Author: DCMS Team
+"""
+Replace the existing add_vlan route in routes/ipam.py with this enhanced version
+"""
 
-Revision History:
-- v1.0.0: Initial creation with VLAN addition form
-          Supports VLAN number, name, VRF, and special flags
--->
-
-{% extends "base.html" %}
-
-{% block title %}Add VLAN - IPAM{% endblock %}
-
-{% block content %}
-<div class="page-header">
-    <h1 class="page-title">Add VLAN</h1>
-    <p class="page-subtitle">Define a new VLAN for IP range mapping</p>
-</div>
-
-<div class="card">
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('ipam.add_vlan') }}">
-            {{ form.hidden_tag() }}
-            
-            <!-- VLAN Number -->
-            <div class="mb-3">
-                {{ form.vlan_number.label(class="form-label") }}
-                {{ form.vlan_number(class="form-control") }}
-                {% if form.vlan_number.errors %}
-                    <div class="text-danger">
-                        {% for error in form.vlan_number.errors %}
-                            <small>{{ error }}</small>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-                <small class="form-text text-muted">VLAN ID (1-4094)</small>
-            </div>
-            
-            <!-- VLAN Name -->
-            <div class="mb-3">
-                {{ form.name.label(class="form-label") }}
-                {{ form.name(class="form-control") }}
-                {% if form.name.errors %}
-                    <div class="text-danger">
-                        {% for error in form.name.errors %}
-                            <small>{{ error }}</small>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-                <small class="form-text text-muted">Will default to "VlanXXX" if not specified</small>
-            </div>
-            
-            <!-- Description -->
-            <div class="mb-3">
-                {{ form.description.label(class="form-label") }}
-                {{ form.description(class="form-control") }}
-                {% if form.description.errors %}
-                    <div class="text-danger">
-                        {% for error in form.description.errors %}
-                            <small>{{ error }}</small>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-            
-            <!-- VRF -->
-            <div class="mb-3">
-                {{ form.vrf.label(class="form-label") }}
-                {{ form.vrf(class="form-control") }}
-                {% if form.vrf.errors %}
-                    <div class="text-danger">
-                        {% for error in form.vrf.errors %}
-                            <small>{{ error }}</small>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-                <small class="form-text text-muted">VRF name if applicable (e.g., "private")</small>
-            </div>
-            
-            <!-- Special Flags -->
-            <div class="mb-3">
-                <label class="form-label">VLAN Type</label>
-                <div class="form-check">
-                    {{ form.is_private(class="form-check-input") }}
-                    {{ form.is_private.label(class="form-check-label") }}
-                    <small class="form-text text-muted d-block">For 10.x.x.x internal networks</small>
-                </div>
-                <div class="form-check">
-                    {{ form.is_colo(class="form-check-input") }}
-                    {{ form.is_colo.label(class="form-check-label") }}
-                    <small class="form-text text-muted d-block">Customer colocation VLAN (201-217)</small>
-                </div>
-                <div class="form-check">
-                    {{ form.is_vps(class="form-check-input") }}
-                    {{ form.is_vps.label(class="form-check-label") }}
-                    <small class="form-text text-muted d-block">VPS pool VLAN (contains VPS IPs)</small>
-                </div>
-            </div>
-            
-            <!-- Submit Buttons -->
-            <div class="d-flex gap-2">
-                {{ form.submit(class="btn btn-primary") }}
-                <a href="{{ url_for('ipam.vlans') }}" class="btn btn-secondary">Cancel</a>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div class="card mt-3">
-    <div class="card-body">
-        <h5 class="card-title">VLAN Ranges at TCH</h5>
-        <ul class="mb-0">
-            <li><strong>2-99:</strong> Public server VLANs</li>
-            <li><strong>111:</strong> Special public VLAN (multiple IP ranges)</li>
-            <li><strong>201-217:</strong> Colocation customer VLANs</li>
-            <li><strong>Private:</strong> Uses VRF for 10.x.x.x networks</li>
-        </ul>
-    </div>
-</div>
-{% endblock %}
+@ipam_bp.route('/vlan/add', methods=['GET', 'POST'])
+def add_vlan():
+    """
+    Add a new VLAN with optional IP range configuration
+    Enhanced to create VLAN and IP range in one operation
+    """
+    form = VLANForm()
+    
+    # Get all networks for the IP range dropdown
+    networks = Network.query.order_by(Network.network).all()
+    
+    if form.validate_on_submit():
+        # Check if VLAN already exists
+        existing = VLAN.query.filter_by(vlan_number=form.vlan_number.data).first()
+        if existing:
+            flash(f'VLAN {form.vlan_number.data} already exists!', 'error')
+            return redirect(url_for('ipam.add_vlan'))
+        
+        # Create the VLAN
+        vlan = VLAN(
+            vlan_number=form.vlan_number.data,
+            name=form.name.data or f"Vlan{form.vlan_number.data}",
+            description=form.description.data,
+            vrf=form.vrf.data,
+            is_private=form.is_private.data,
+            is_colo=form.is_colo.data,
+            is_vps=form.is_vps.data,
+            colo_client_id=form.colo_client_id.data if form.is_colo.data else None,
+            colo_client_name=form.colo_client_name.data if form.is_colo.data else None
+        )
+        
+        db.session.add(vlan)
+        db.session.flush()  # Get the VLAN ID without committing
+        
+        # Check if IP range configuration was provided
+        network_id = request.form.get('network_id')
+        start_ip = request.form.get('start_ip')
+        end_ip = request.form.get('end_ip')
+        gateway_ip = request.form.get('gateway_ip')
+        netmask = request.form.get('netmask')
+        
+        if network_id and start_ip and end_ip:
+            try:
+                # Validate IP addresses
+                import ipaddress
+                ipaddress.ip_address(start_ip)
+                ipaddress.ip_address(end_ip)
+                if gateway_ip:
+                    ipaddress.ip_address(gateway_ip)
+                
+                # Verify IPs are in correct order
+                if ipaddress.ip_address(end_ip) <= ipaddress.ip_address(start_ip):
+                    raise ValueError("End IP must be after Start IP")
+                
+                # Create IP range
+                ip_range = IPRange(
+                    network_id=int(network_id),
+                    vlan_id=vlan.id,
+                    start_ip=start_ip,
+                    end_ip=end_ip,
+                    gateway_ip=gateway_ip,
+                    netmask=netmask,
+                    range_type='primary',
+                    status='active',
+                    description=request.form.get('range_description', '')
+                )
+                
+                db.session.add(ip_range)
+                db.session.flush()
+                
+                # Create individual IP records if requested
+                if request.form.get('create_ips'):
+                    created_count = create_ips_for_range(ip_range)
+                    flash(f'Created {created_count} IP addresses for range {start_ip}-{end_ip}', 'info')
+                
+                # Success message with IP range info
+                flash(f'VLAN {vlan.vlan_number} created with IP range {start_ip}-{end_ip}!', 'success')
+                if gateway_ip:
+                    flash(f'Gateway {gateway_ip} marked as non-assignable', 'info')
+                
+            except ValueError as e:
+                db.session.rollback()
+                flash(f'Invalid IP configuration: {str(e)}', 'error')
+                return render_template('ipam/add_vlan.html', 
+                                     form=form, 
+                                     networks=networks)
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error creating IP range: {str(e)}', 'error')
+                return render_template('ipam/add_vlan.html', 
+                                     form=form, 
+                                     networks=networks)
+        else:
+            # Just creating VLAN without IP range
+            flash(f'VLAN {vlan.vlan_number} created successfully!', 'success')
+            if not network_id:
+                flash('Tip: You can add IP ranges to this VLAN later', 'info')
+        
+        # Commit everything
+        db.session.commit()
+        
+        # If it's a colo VLAN with client info, show that
+        if vlan.is_colo and vlan.colo_client_name:
+            flash(f'Assigned to client: {vlan.colo_client_name}', 'info')
+        
+        # Redirect to VLAN detail page to see what was created
+        return redirect(url_for('ipam.vlan_detail', vlan_id=vlan.id))
+    
+    return render_template('ipam/add_vlan.html', 
+                         form=form, 
+                         networks=networks)

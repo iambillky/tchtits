@@ -13,7 +13,6 @@ Revision History:
 - v1.0.2: Added description field to IPRangeForm to fix template error
 - v1.0.3: Added ip_range field to BulkAssignForm to fix template error
 - v1.0.4: Added create_ips field to IPRangeForm to fix template error
-- v1.0.5: Added colo_client fields to VLANForm for tracking colocation customers
 """
 
 from flask_wtf import FlaskForm
@@ -91,26 +90,12 @@ class VLANForm(FlaskForm):
     is_colo = BooleanField('Colocation VLAN')
     is_vps = BooleanField('VPS Pool VLAN')
     
-    # === Colocation Client Tracking ===
-    colo_client_id = IntegerField('Colocation Client ID',
-                                  validators=[Optional()],
-                                  render_kw={"placeholder": "e.g., 1001"})
-    
-    colo_client_name = StringField('Colocation Client Name',
-                                   validators=[Optional(), Length(max=100)],
-                                   render_kw={"placeholder": "e.g., Acme Corp"})
-    
     submit = SubmitField('Add VLAN')
     
     def validate_vlan_number(self, field):
         """Validate VLAN number range"""
         if field.data < 1 or field.data > 4094:
             raise ValidationError('VLAN number must be between 1 and 4094')
-    
-    def validate_colo_client_id(self, field):
-        """Validate that colo client ID is provided if is_colo is checked"""
-        if self.is_colo.data and not field.data and not self.colo_client_name.data:
-            raise ValidationError('Please provide Client ID or Name for colocation VLANs')
 
 # ========== IP RANGE FORM ==========
 
